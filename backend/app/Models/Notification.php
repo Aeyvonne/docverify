@@ -9,55 +9,38 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 use App\Models\User;
 use App\Models\Verification;
+use App\Models\DemandesCertification;
+
 
 /**
  * Modèle représentant un document certifié numériquement.
  * Gère l'émission, la sécurisation cryptographique et la révocation des documents.
  */
-class Document extends Model
+class Notification extends Model
 {
     use HasFactory;
 
-    // Champs autorisés à être remplis en masse (mass assignment)
     protected $fillable = [
-        'emetteur_id',      // ID de l'utilisateur/organisation qui émet le document
-        'revoked_by',       // ID de l'utilisateur qui a révoqué le document
-        'titre',            // Titre/nom du document
-        'type',             // Type de document : diplôme, attestation, contrat...
-        'fichier_original', // Fichier brut uploadé avant certification
-        'hash_sha256',      // Empreinte cryptographique SHA-256 (garantit l'intégrité)
-        'qr_token',         // Token unique pour le QR code de vérification externe
-        'pdf_certifie',     // Chemin vers le PDF final avec cachet de certification
-        'statut',           // État : actif, révoqué, expiré
-        'motif_revocation', // Raison de la révocation (rempli si statut = révoqué)
-        'pin_hash',         // PIN hashé pour protéger l'accès au document
-        'date_emission',    // Date d'émission officielle du document
-        'date_expiration',  // Date de fin de validité du document
-        'revoked_at',       // Horodatage exact de la révocation
+        'admin_id',
+        'demande_id',
+        'message',
+        'lu',
+        'created_at',
     ];
 
-    // Conversion automatique des types pour certains champs
     protected $casts = [
-        'date_emission'  => 'date',     
-        'date_expiration' => 'date',    
-        'revoked_at'     => 'datetime', 
+        'lu' => 'boolean',
+        'created_at' => 'datetime',
     ];
 
-    
-    public function emetteur(): BelongsTo
+    public function admin(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'emetteur_id');
+        return $this->belongsTo(User::class, 'admin_id');
     }
 
-    
-    public function revokedBy(): BelongsTo
+    public function demande(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'revoked_by');
-    }
-
-    
-    public function verifications(): HasMany
-    {
-        return $this->hasMany(Verification::class, 'document_id');
+        return $this->belongsTo(DemandesCertification::class, 'demande_id');
     }
 }
+

@@ -1,32 +1,25 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
+use App\Services\QRCodeService;
+use App\Services\PDFService;
+
+Route::get('/test-certify', function () {
+    $token     = (new QRCodeService())->generateToken();
+    $verifyUrl = config('app.url') . '/verify/' . $token;
+    $qrPng     = (new QRCodeService())->renderQrPng($verifyUrl);
+    $path      = (new PDFService())->certifyPdf(
+        storage_path('app/test-samples/sample.pdf'),
+        $qrPng
+    );
+    return response()->file($path);
+});
+
+Route::get('/test-qr', function () {
+    $svg = (new QRCodeService())->renderQrSvg('Bonjour DocVerify');
+    return response($svg)->header('Content-Type', 'image/svg+xml');
+});
 
 Route::get('/', function () {
     return view('welcome');
 });
-
-// Temp: API routes are defined in routes/api.php, but route:list --path=api shows none.
-// To ensure API endpoints are available immediately, expose them here under /api.
-
-Route::get('/api/health', function () {
-    return response()->json(['status' => 'ok']);
-});
-
-Route::get('/api/documents', function () {
-    return \App\Models\Document::query()->latest()->get();
-});
-
-Route::get('/api/verifications', function () {
-    return \App\Models\Verification::query()->latest()->get();
-});
-
-Route::get('/api/demandes-certification', function () {
-    return \App\Models\DemandesCertification::query()->latest()->get();
-});
-
-Route::get('/api/notifications', function () {
-    return DB::table('notifications')->latest()->get();
-});
-

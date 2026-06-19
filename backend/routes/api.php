@@ -1,30 +1,33 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\DB;
-use App\Models\Document;
-use App\Models\Verification;
-use App\Models\DemandesCertification;
-use App\Models\Notification;
+use App\Http\Controllers\DocumentController;
+use Illuminate\Http\Request;
+use App\Services\HashService;
+use App\Services\QRCodeService;
+use App\Services\PDFService;
 
+// Health check
 Route::get('/health', function () {
     return response()->json(['status' => 'ok']);
 });
 
-Route::get('/documents', function () {
-    return Document::query()->latest()->get();
+// Test tamponnage sans auth (Postman uniquement)
+Route::post('/test-certify-upload', function (Request $request) {
+    $request->validate([
+        'document' => 'required|file|mimes:pdf|max:10240',
+    ]);
+
+    $file      = $request->file('document');
+    $hash      = (new HashService())->hashSha256($file);
+    $token     = (new QRCodeService())->generateToken();
+    $verifyUrl = config('app.url') . '/verify/' . $token;
+    $qrPng     = (new QRCodeService())->renderQrPng($verifyUrl);
+    $certified = (new PDFService())->certifyPdf($file->getRealPath(), $qrPng);
+
+    return response()->file($certified);
 });
 
-Route::get('/verifications', function () {
-    return Verification::query()->latest()->get();
-});
-
-Route::get('/demandes-certification', function () {
-    return DemandesCertification::query()->latest()->get();
-});
-
-Route::get('/notifications', function () {
-    return DB::table('notifications')->latest()->get();
-});
-
-
+// Routes documents — auth:sanctum à ajouter par le Membre 2
+Route::post('/documents', [DocumentController::class, 'store']);
+Route::get('/documents',  [DocumentController::class, 'index']);

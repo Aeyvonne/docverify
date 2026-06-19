@@ -51,10 +51,20 @@ class User extends Authenticatable
     }
 
 
+    // Champs alignés avec la table `users` (migration)
     protected $fillable = [
-        'name',     // Nom de l'utilisateur
-        'email',    // Adresse email (utilisée pour la connexion)
-        'password', // Mot de passe (sera automatiquement hashé via $casts)
+        'nom',
+        'prenom',
+        'email',
+        'password',
+        'role',
+        'telephone',
+        'nom_institution',
+        'type_institution',
+        'adresse',
+        'is_active',
+        'is_certified',
+        'last_login_at',
     ];
 
     /**
