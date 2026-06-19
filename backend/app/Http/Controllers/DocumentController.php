@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
-use App\Models\Verification;
 use App\Services\HashService;
 use App\Services\QRCodeService;
 use App\Services\PDFService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class DocumentController extends Controller
@@ -15,62 +15,50 @@ class DocumentController extends Controller
     public function store(Request $request, HashService $hashService, QRCodeService $qrCodeService, PDFService $pdfService)
     {
         $validated = $request->validate([
-            'titre' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'max:255'],
+            'titre'            => ['required', 'string', 'max:255'],
+            'type'             => ['required', 'string', 'max:255'],
             'fichier_original' => ['required', 'file', 'mimetypes:application/pdf'],
-            'date_emission' => ['required', 'date'],
-            'date_expiration' => ['nullable', 'date'],
+            'date_emission'    => ['required', 'date'],
+            'date_expiration'  => ['nullable', 'date'],
         ]);
 
-        $uploaded = $validated['fichier_original'];
+        // ✅ CORRECTION : récupérer le fichier depuis $request, pas depuis $validated
+        $uploaded = $request->file('fichier_original');
+
         $hash = $hashService->hashSha256($uploaded);
 
-        $token = $qrCodeService->generateToken();
-        $qrValue = (string) $token; // à adapter si vous voulez un lien complet
-        $qrSvg = $qrCodeService->renderQrSvg($qrValue, 260);
+        $token     = $qrCodeService->generateToken();
+        $verifyUrl = config('app.url') . '/verify/' . $token;
+        $qrPng     = $qrCodeService->renderQrPng($verifyUrl, 260);
 
-        $originalPath = $uploaded->storeAs('originals', Str::uuid() . '.pdf', 'local');
+        $originalPath     = $uploaded->storeAs('originals', Str::uuid() . '.pdf', 'local');
         $originalAbsolute = storage_path('app/' . $originalPath);
 
-        $meta = [
-            'titre' => $validated['titre'],
-            'type' => $validated['type'],
-            'hash_sha256' => $hash,
-            'qr_token' => $token,
-            'date_emission' => $validated['date_emission'],
-            'date_expiration' => $validated['date_expiration'] ?? null,
-            'statut' => 'actif',
-        ];
-
-        $pdfCertifiePath = $pdfService->generateCertifiedPdfFromHtml($originalAbsolute, $qrSvg, $meta);
+        $pdfCertifiePath     = $pdfService->certifyPdf($originalAbsolute, $qrPng);
         $pdfCertifieRelative = str_replace(storage_path('app/') . DIRECTORY_SEPARATOR, '', $pdfCertifiePath);
 
-        // NOTE: absence d’auth confirmée dans la conversation précédente.
-        // On met pour l’instant emetteur_id = utilisateur connecté si disponible, sinon NULL échouera sur FK.
-        $emetteurId = null;
-        try {
-            $emetteurId = auth()->id();
-        } catch (\Throwable $e) {
-        }
+        $emetteurId = Auth::id();
 
         if (!$emetteurId) {
-            return response()->json(['message' => 'auth non configurée : impossible de déterminer emetteur_id'], 422);
+            return response()->json([
+                'message' => 'Non authentifié : impossible de déterminer emetteur_id.',
+            ], 401);
         }
 
         $document = Document::create([
-            'emetteur_id' => $emetteurId,
-            'titre' => $validated['titre'],
-            'type' => $validated['type'],
+            'emetteur_id'      => $emetteurId,
+            'titre'            => $validated['titre'],
+            'type'             => $validated['type'],
             'fichier_original' => $originalPath,
-            'hash_sha256' => $hash,
-            'qr_token' => $token,
-            'pdf_certifie' => $pdfCertifieRelative,
-            'statut' => 'actif',
+            'hash_sha256'      => $hash,
+            'qr_token'         => $token,
+            'pdf_certifie'     => $pdfCertifieRelative,
+            'statut'           => 'actif',
             'motif_revocation' => null,
-            'pin_hash' => null,
-            'date_emission' => $validated['date_emission'],
-            'date_expiration' => $validated['date_expiration'] ?? null,
-            'revoked_at' => null,
+            'pin_hash'         => null,
+            'date_emission'    => $validated['date_emission'],
+            'date_expiration'  => $validated['date_expiration'] ?? null,
+            'revoked_at'       => null,
         ]);
 
         return response()->json($document->load('verifications'), 201);
@@ -78,9 +66,12 @@ class DocumentController extends Controller
 
     public function index(Request $request)
     {
-        $emetteurId = auth()->id();
+        $emetteurId = Auth::id();
+
         if (!$emetteurId) {
-            return response()->json(['message' => 'auth non configurée'], 422);
+            return response()->json([
+                'message' => 'Non authentifié.',
+            ], 401);
         }
 
         $documents = Document::query()
@@ -91,4 +82,3 @@ class DocumentController extends Controller
         return response()->json($documents);
     }
 }
-
