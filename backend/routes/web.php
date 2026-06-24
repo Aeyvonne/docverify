@@ -23,3 +23,4 @@ Route::get('/test-qr', function () {
 Route::get('/', function () {
     return view('welcome');
 });
+require __DIR__.'/auth.php';

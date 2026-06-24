@@ -12,7 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Enregistrement des alias de middleware
+        $middleware->alias([
+            'admin'    => \App\Http\Middleware\IsAdmin::class,
+            'emetteur' => \App\Http\Middleware\IsEmetteur::class,
+        ]);
+
+        // Sanctum gère l'auth via tokens pour les routes API
+        $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
