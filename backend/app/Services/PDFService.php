@@ -11,8 +11,18 @@ class PDFService
      * Estampille le PDF original avec le QR Code sur CHAQUE page,
      * sans toucher au contenu existant du document.
      */
-    public function certifyPdf(string $originalPdfPath, string $qrPngBinary, int $qrSizeMm = 25, int $marginMm = 10): string
-    {
+    /**
+     * @param  float|null  $positionX  Position X en mm depuis le bord gauche (null = automatique)
+     * @param  float|null  $positionY  Position Y en mm depuis le bord supérieur (null = automatique)
+     */
+    public function certifyPdf(
+        string $originalPdfPath,
+        string $qrPngBinary,
+        int    $qrSizeMm  = 25,
+        int    $marginMm  = 10,
+        ?float $positionX = null,
+        ?float $positionY = null
+    ): string {
         // FPDI a besoin d'un vrai fichier image, pas de données binaires en mémoire
         $qrTempPath = tempnam(sys_get_temp_dir(), 'qr_');
         file_put_contents($qrTempPath, $qrPngBinary);
@@ -27,9 +37,9 @@ class PDFService
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($templateId);
 
-            // Position : coin bas-droit de la page
-            $x = $size['width'] - $qrSizeMm - $marginMm;
-            $y = $size['height'] - $qrSizeMm - $marginMm;
+            // Position libre si fournie, sinon coin bas-droit par défaut
+            $x = $positionX ?? ($size['width']  - $qrSizeMm - $marginMm);
+            $y = $positionY ?? ($size['height'] - $qrSizeMm - $marginMm);
 
             $pdf->Image($qrTempPath, $x, $y, $qrSizeMm, $qrSizeMm, 'PNG');
         }

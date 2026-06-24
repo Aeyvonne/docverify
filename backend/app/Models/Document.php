@@ -32,6 +32,8 @@ class Document extends Model
         'date_emission',
         'date_expiration',
         'revoked_at',
+        'qr_position_x',
+        'qr_position_y',
     ];
 
     protected $casts = [
