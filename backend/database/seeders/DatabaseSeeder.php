@@ -3,23 +3,41 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Compte administrateur (créé uniquement en base, jamais via l'inscription)
+        User::firstOrCreate(
+            ['email' => 'admin@docverify.sn'],
+            [
+                'nom'             => 'Admin',
+                'prenom'          => 'DocVerify',
+                'password'        => Hash::make('Admin@1234'),
+                'role'            => 'admin',
+                'is_active'       => true,
+                'is_certified'    => false,
+                'nom_institution' => 'DocVerify Platform',
+            ]
+        );
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // Émetteur standard de test
+        User::firstOrCreate(
+            ['email' => 'emetteur@test.sn'],
+            [
+                'nom'             => 'Diallo',
+                'prenom'          => 'Moussa',
+                'password'        => Hash::make('Emetteur@1234'),
+                'role'            => 'emetteur',
+                'is_active'       => true,
+                'is_certified'    => false,
+                'nom_institution' => 'Université Cheikh Anta Diop',
+                'type_institution'=> 'université',
+                'telephone'       => '+221771234567',
+            ]
+        );
     }
 }
