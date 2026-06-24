@@ -9,7 +9,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+ public function up(): void
 {
     Schema::create('verifications', function (Blueprint $table) {
         $table->id();
@@ -19,6 +19,7 @@ return new class extends Migration
         $table->string('pays')->nullable();
         $table->string('statut_au_scan');
         $table->timestamp('verified_at')->useCurrent();
+        // pas de timestamps() — on gère verified_at manuellement
     });
 }
 

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Document;
 use App\Models\User;
+use App\Models\Verification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -157,5 +159,43 @@ class AdminController extends Controller
         }
 
         return response()->json($user->load('demandesCertifications'));
+    }
+
+    /**
+     * Statistiques globales pour le tableau de bord administrateur.
+     *
+     * GET /api/admin/stats
+     * Protégé : auth:sanctum + middleware admin
+     */
+    public function dashboardStats()
+    {
+        // Compter les documents expirés (statut = actif mais date_expiration dépassée)
+        $expireCount = Document::where('statut', 'actif')
+            ->whereNotNull('date_expiration')
+            ->where('date_expiration', '<', now()->toDateString())
+            ->count();
+
+        return response()->json([
+            'documents' => [
+                'total'   => Document::count(),
+                'actifs'  => Document::where('statut', 'actif')
+                                ->where(function ($q) {
+                                    $q->whereNull('date_expiration')
+                                      ->orWhere('date_expiration', '>=', now()->toDateString());
+                                })
+                                ->count(),
+                'revoques' => Document::where('statut', 'revoque')->count(),
+                'expires'  => $expireCount,
+            ],
+            'verifications' => [
+                'total' => Verification::count(),
+            ],
+            'emetteurs' => [
+                'total'     => User::where('role', 'emetteur')->count(),
+                'certifies' => User::where('role', 'emetteur')
+                                   ->where('is_certified', true)
+                                   ->count(),
+            ],
+        ]);
     }
 }

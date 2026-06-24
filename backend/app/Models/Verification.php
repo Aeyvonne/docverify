@@ -10,6 +10,8 @@ class Verification extends Model
 {
     use HasFactory;
 
+    public $timestamps = false; // ← ajouter cette ligne
+
     protected $fillable = [
         'document_id',
         'ip_address',
@@ -28,4 +30,3 @@ class Verification extends Model
         return $this->belongsTo(Document::class, 'document_id');
     }
 }
-
