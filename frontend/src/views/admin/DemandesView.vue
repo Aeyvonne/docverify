@@ -53,7 +53,19 @@ const statutStyle = {
   refusee:    { label: 'Refusée',    color: '#8c3520', bg: 'rgba(181,83,60,0.08)',    border: 'rgba(181,83,60,0.3)' },
 }
 
-// Certifier un émetteur directement depuis la demande
+// Ouvre le justificatif dans un nouvel onglet avec le token Bearer
+function voirJustificatif(demandeId) {
+  const token = localStorage.getItem('auth_token')
+  // On passe par fetch pour envoyer l'auth header, puis on crée un blob URL
+  fetch(`/api/admin/demandes/${demandeId}/justificatif`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then(r => r.blob())
+    .then(blob => {
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+    })
+}
 async function certifierDepuisDemande(demande) {
   try {
     await api.patch(`/admin/emetteurs/${demande.user_id}/certify`)
@@ -170,6 +182,18 @@ async function submitRefus() {
             </div>
 
             <p class="text-xs text-taupe mt-2">Soumise le {{ formatDate(d.created_at) }}</p>
+
+            <!-- Fichier justificatif -->
+            <button v-if="d.fichier_preuve"
+                    @click="voirJustificatif(d.id)"
+                    class="mt-3 inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
+                    style="background:rgba(74,55,44,0.08); color:#4A372C; border:1px solid rgba(74,55,44,0.2);">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+              </svg>
+              Voir le justificatif
+            </button>
 
             <!-- Motif de refus -->
             <div v-if="d.motif_refus"

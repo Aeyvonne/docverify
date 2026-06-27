@@ -27,6 +27,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     // Statistiques tableau de bord
     Route::get('/stats',                      [AdminController::class, 'dashboardStats']);
 
+    // Notifications
+    Route::get('/notifications',              [AdminController::class, 'notifications']);
+    Route::patch('/notifications/mark-read',  [AdminController::class, 'markNotificationsRead']);
+
     // Gestion des admins
     Route::get('/admins',        [AdminController::class, 'indexAdmins']);
     Route::post('/admins',       [AdminController::class, 'createAdmin']);
@@ -42,6 +46,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 
     // Gestion des demandes de certification
     Route::get('/demandes',                           [DemandesCertificationController::class, 'index']);
+    Route::get('/demandes/{demande}/justificatif',    [DemandesCertificationController::class, 'downloadJustificatif']);
     Route::patch('/demandes/{demande}/refuse',        [DemandesCertificationController::class, 'refuse']);
 });
 

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\DemandesCertification;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -64,6 +66,17 @@ class DemandesCertificationController extends Controller
             'statut'         => 'en_attente',
         ]);
 
+        // Notifier tous les admins actifs
+        $admins = User::where('role', 'admin')->where('is_active', true)->get();
+        foreach ($admins as $admin) {
+            Notification::create([
+                'admin_id'   => $admin->id,
+                'demande_id' => $demande->id,
+                'message'    => "Nouvelle demande de certification de {$user->prenom} {$user->nom} ({$user->nom_institution}).",
+                'lu'         => false,
+            ]);
+        }
+
         return response()->json([
             'message' => 'Demande de certification soumise avec succès. Elle sera traitée par un administrateur.',
             'demande' => $demande,
@@ -99,6 +112,33 @@ class DemandesCertificationController extends Controller
             ->get();
 
         return response()->json($demandes);
+    }
+
+    /**
+     * Sert le fichier justificatif d'une demande — admin uniquement.
+     *
+     * GET /api/admin/demandes/{demande}/justificatif
+     */
+    public function downloadJustificatif(DemandesCertification $demande)
+    {
+        $path = storage_path('app/' . $demande->fichier_preuve);
+
+        if (! file_exists($path)) {
+            return response()->json(['message' => 'Fichier introuvable.'], 404);
+        }
+
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $mime = match(strtolower($extension)) {
+            'pdf'  => 'application/pdf',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png'  => 'image/png',
+            default => 'application/octet-stream',
+        };
+
+        return response()->file($path, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'inline; filename="justificatif.' . $extension . '"',
+        ]);
     }
 
     /**
