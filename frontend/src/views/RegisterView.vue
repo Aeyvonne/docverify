@@ -45,6 +45,17 @@ const formEntreprise = ref({
   password_confirmation: '',
 })
 
+// Règles de validation du mot de passe
+const pwdRules = computed(() => {
+  const pwd = form.value.password
+  return [
+    { label: '8 caractères minimum', ok: pwd.length >= 8 },
+    { label: 'Une majuscule',         ok: /[A-Z]/.test(pwd) },
+    { label: 'Un caractère spécial',  ok: /[^a-zA-Z0-9]/.test(pwd) },
+  ]
+})
+const pwdValid = computed(() => pwdRules.value.every(r => r.ok))
+
 const typesEntreprise = [
   'Université', 'Institut supérieur', 'Lycée / Collège',
   'École primaire', 'Entreprise privée', 'Administration publique',
@@ -59,6 +70,10 @@ const form = computed(() =>
 async function handleSubmit() {
   if (form.value.password !== form.value.password_confirmation) {
     errorMsg.value = 'Les mots de passe ne correspondent pas.'
+    return
+  }
+  if (!pwdValid.value) {
+    errorMsg.value = 'Le mot de passe doit contenir au moins 8 caractères, une majuscule et un caractère spécial.'
     return
   }
   loading.value  = true
@@ -352,6 +367,22 @@ async function handleSubmit() {
                 </label>
                 <input v-model="form.password" type="password" class="input-field" required
                        placeholder="••••••••" autocomplete="new-password" />
+
+                <!-- Indicateur des règles en temps réel -->
+                <div v-if="form.password.length > 0" class="mt-2 flex flex-col gap-1">
+                  <div v-for="rule in pwdRules" :key="rule.label"
+                       class="flex items-center gap-2">
+                    <span class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center text-xs"
+                          :style="rule.ok
+                            ? 'background:rgba(124,144,112,0.2); color:#4a6640;'
+                            : 'background:rgba(181,83,60,0.1); color:#B5533C;'">
+                      {{ rule.ok ? '✓' : '×' }}
+                    </span>
+                    <span class="text-xs" :style="rule.ok ? 'color:#4a6640;' : 'color:#8C7A6B;'">
+                      {{ rule.label }}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div>

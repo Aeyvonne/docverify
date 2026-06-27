@@ -20,11 +20,18 @@ class AuthController extends Controller
             'nom'              => ['required', 'string', 'max:100'],
             'prenom'           => ['required', 'string', 'max:100'],
             'email'            => ['required', 'email', 'unique:users,email'],
-            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+            'password'         => [
+                'required', 'string', 'min:8', 'confirmed',
+                'regex:/[A-Z]/',
+                'regex:/[^a-zA-Z0-9]/',
+            ],
             'telephone'        => ['nullable', 'string', 'max:20'],
             'nom_institution'  => ['nullable', 'string', 'max:255'],
             'type_institution' => ['nullable', 'string', 'max:100'],
             'adresse'          => ['nullable', 'string', 'max:255'],
+        ], [
+            'password.min'   => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un caractère spécial (ex: @, #, !, %).',
         ]);
 
         // Un particulier est auto-certifié : pas besoin de validation admin
