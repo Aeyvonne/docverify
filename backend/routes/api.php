@@ -63,7 +63,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // ── Vérification publique (aucune authentification) ───────────────────
 Route::prefix('verify')->group(function () {
-    Route::get('/{token}',                  [VerificationController::class, 'verify']);
+    Route::get('/{token}',          [VerificationController::class, 'verify']);
+    Route::get('/{token}/original', [VerificationController::class, 'streamOriginal']);
     Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);
-    Route::get('/{token}/report',           [VerificationController::class, 'downloadReport']);
+    Route::get('/{token}/report',   [VerificationController::class, 'downloadReport']);
 });
