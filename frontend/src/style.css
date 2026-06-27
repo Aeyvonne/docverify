@@ -1,1 +1,154 @@
 @import "tailwindcss";
+
+/* ── Couleurs custom DocVerify ───────────────────────────────────────── */
+@theme {
+  --color-brown-dark:   #4A372C;
+  --color-brown:        #6B4F3F;
+  --color-sand:         #D9C6A8;
+  --color-beige-medium: #E8DCCB;
+  --color-beige-light:  #F2E9DE;
+  --color-cream:        #FBF7F0;
+  --color-taupe:        #8C7A6B;
+  --color-text-dark:    #3A2E26;
+  --color-sage:         #7C9070;
+  --color-terracotta:   #B5533C;
+  --color-ochre:        #C99A3C;
+
+  --font-serif:   'Cormorant', Georgia, serif;
+  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-display: 'Poppins', system-ui, sans-serif;
+}
+
+/* ── Reset de base ───────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #F2E9DE;
+  color: #3A2E26;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Navbar liquid glass ─────────────────────────────────────────────── */
+.navbar-glass {
+  background: rgba(242, 233, 222, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(140, 122, 107, 0.18);
+  box-shadow: 0 4px 30px rgba(74, 55, 44, 0.07);
+}
+
+/* ── Filigrane géant ─────────────────────────────────────────────────── */
+.watermark-text {
+  position: absolute;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 900;
+  font-size: clamp(80px, 18vw, 220px);
+  color: #8C7A6B;
+  opacity: 0.08;
+  white-space: nowrap;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: -0.02em;
+}
+
+/* ── Card premium ────────────────────────────────────────────────────── */
+.card-premium {
+  background: #FBF7F0;
+  border: 1px solid rgba(217, 198, 168, 0.5);
+  border-radius: 16px;
+  box-shadow:
+    0 1px 3px rgba(74, 55, 44, 0.05),
+    0 8px 32px rgba(74, 55, 44, 0.06);
+}
+
+/* ── Bouton principal ────────────────────────────────────────────────── */
+.btn-primary {
+  background-color: #4A372C;
+  color: #FBF7F0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+.btn-primary:hover  { background-color: #6B4F3F; }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled {
+  background-color: #D9C6A8;
+  color: #8C7A6B;
+  cursor: not-allowed;
+}
+
+/* ── Bouton secondaire ───────────────────────────────────────────────── */
+.btn-secondary {
+  background-color: transparent;
+  color: #4A372C;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.75rem 2rem;
+  border-radius: 8px;
+  border: 1px solid #D9C6A8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-secondary:hover { background-color: #E8DCCB; border-color: #8C7A6B; }
+
+/* ── Champs de formulaire ────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background-color: #FBF7F0;
+  border: 1px solid #D9C6A8;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.875rem;
+  color: #3A2E26;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input-field:focus {
+  border-color: #6B4F3F;
+  box-shadow: 0 0 0 3px rgba(107, 79, 63, 0.1);
+}
+.input-field::placeholder { color: #8C7A6B; }
+
+/* ── Badge de statut ─────────────────────────────────────────────────── */
+.badge-valide      { background: rgba(124,144,112,0.12); color: #4a6640; border: 1px solid rgba(124,144,112,0.3); }
+.badge-revoque     { background: rgba(181,83,60,0.10);   color: #8c3520; border: 1px solid rgba(181,83,60,0.3);  }
+.badge-expire      { background: rgba(201,154,60,0.10);  color: #8a6010; border: 1px solid rgba(201,154,60,0.3); }
+.badge-inconnu     { background: rgba(140,122,107,0.10); color: #5a4a3e; border: 1px solid rgba(140,122,107,0.3);}
+
+/* ── Animation badge flottant ────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+.badge-float { animation: float 4s ease-in-out infinite; }
+
+/* ── Fade-in séquentiel ──────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.5s ease forwards; }
+.delay-100  { animation-delay: 0.1s; opacity: 0; }
+.delay-200  { animation-delay: 0.2s; opacity: 0; }
+.delay-300  { animation-delay: 0.3s; opacity: 0; }
+.delay-500  { animation-delay: 0.5s; opacity: 0; }
+.delay-700  { animation-delay: 0.7s; opacity: 0; }
+
+/* ── Scrollbar discrète ──────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; }
+::-webkit-scrollbar-track { background: #F2E9DE; }
+::-webkit-scrollbar-thumb { background: #D9C6A8; border-radius: 3px; }

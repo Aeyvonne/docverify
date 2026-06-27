@@ -10,6 +10,8 @@ class Verification extends Model
 {
     use HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'document_id',
         'ip_address',

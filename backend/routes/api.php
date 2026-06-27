@@ -5,14 +5,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DocumentController;
-use App\Services\HashService;
-use App\Services\QRCodeService;
-use App\Services\PDFService;
+use App\Http\Controllers\VerificationController;
+use App\Http\Controllers\DemandesCertificationController;
 
-// Health check
+// ── Health check ──────────────────────────────────────────────────────
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
-// Auth
+// ── Authentification ──────────────────────────────────────────────────
 Route::middleware('guest')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
@@ -23,30 +22,48 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me',      [AuthController::class, 'me']);
 });
 
-// Admin
+// ── Administration (admin uniquement) ─────────────────────────────────
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // Statistiques tableau de bord
+    Route::get('/stats',                      [AdminController::class, 'dashboardStats']);
+
+    // Gestion des admins
+    Route::get('/admins',        [AdminController::class, 'indexAdmins']);
+    Route::post('/admins',       [AdminController::class, 'createAdmin']);
+
+    // Gestion des émetteurs
     Route::get('/emetteurs',                  [AdminController::class, 'indexEmetteurs']);
     Route::post('/emetteurs',                 [AdminController::class, 'createEmetteur']);
     Route::get('/emetteurs/{user}',           [AdminController::class, 'showEmetteur']);
     Route::put('/emetteurs/{user}',           [AdminController::class, 'updateEmetteur']);
     Route::patch('/emetteurs/{user}/toggle',  [AdminController::class, 'toggleActive']);
     Route::patch('/emetteurs/{user}/certify', [AdminController::class, 'certifyEmetteur']);
-    Route::patch('/emetteurs/{user}/revoke', [AdminController::class, 'revokeEmetteurCertification']);
+    Route::patch('/emetteurs/{user}/revoke',  [AdminController::class, 'revokeEmetteurCertification']);
+
+    // Gestion des demandes de certification
+    Route::get('/demandes',                           [DemandesCertificationController::class, 'index']);
+    Route::patch('/demandes/{demande}/refuse',        [DemandesCertificationController::class, 'refuse']);
 });
 
-// Documents
+// ── Documents (émetteurs authentifiés) ────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/documents', [DocumentController::class, 'store']);
-    Route::get('/documents',  [DocumentController::class, 'index']);
+    Route::get('/documents',                         [DocumentController::class, 'index']);
+    Route::post('/documents',                        [DocumentController::class, 'store']);
+    Route::patch('/documents/{document}/revoke',     [DocumentController::class, 'revoke']);
+    Route::get('/documents/{document}/download',     [DocumentController::class, 'download']);
+    // Dimensions des pages PDF pour le placement du QR côté frontend
+    Route::post('/documents/page-dimensions',        [DocumentController::class, 'pageDimensions']);
 });
 
-// Test tamponnage (Postman uniquement, à supprimer en prod)
-Route::post('/test-certify-upload', function (Request $request) {
-    $request->validate(['document' => 'required|file|mimes:pdf|max:10240']);
-    $file      = $request->file('document');
-    $token     = (new QRCodeService())->generateToken();
-    $verifyUrl = config('app.url') . '/verify/' . $token;
-    $qrPng     = (new QRCodeService())->renderQrPng($verifyUrl);
-    $certified = (new PDFService())->certifyPdf($file->getRealPath(), $qrPng);
-    return response()->file($certified);
-})->middleware(['auth:sanctum', 'emetteur']);
+// ── Demandes de certification (émetteurs authentifiés) ────────────────
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/demandes-certification',            [DemandesCertificationController::class, 'store']);
+    Route::get('/demandes-certification/ma-demande',  [DemandesCertificationController::class, 'maDemande']);
+});
+
+// ── Vérification publique (aucune authentification) ───────────────────
+Route::prefix('verify')->group(function () {
+    Route::get('/{token}',                  [VerificationController::class, 'verify']);
+    Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);
+    Route::get('/{token}/report',           [VerificationController::class, 'downloadReport']);
+});

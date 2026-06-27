@@ -27,18 +27,23 @@ class AuthController extends Controller
             'adresse'          => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Un particulier est auto-certifié : pas besoin de validation admin
+        $isParticulier = ($data['type_institution'] ?? null) === 'particulier';
+
         $user = User::create([
             'nom'              => $data['nom'],
             'prenom'           => $data['prenom'],
             'email'            => $data['email'],
             'password'         => Hash::make($data['password']),
-            'role'             => 'emetteur', // forcé : pas d'admin via l'inscription
+            'role'             => 'emetteur',
             'telephone'        => $data['telephone'] ?? null,
             'nom_institution'  => $data['nom_institution'] ?? null,
             'type_institution' => $data['type_institution'] ?? null,
             'adresse'          => $data['adresse'] ?? null,
             'is_active'        => true,
-            'is_certified'     => false,
+            // Particulier → certifié automatiquement (pas de validation admin nécessaire)
+            // Institution → en attente de certification par l'admin
+            'is_certified'     => $isParticulier,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

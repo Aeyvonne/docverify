@@ -20,6 +20,8 @@ class Notification extends Model
 {
     use HasFactory;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'admin_id',
         'demande_id',
