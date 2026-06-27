@@ -41,7 +41,7 @@ class VerificationController extends Controller
             : null;
 
         $pdfOriginalUrl = $document->fichier_original
-            ? url('storage/' . $document->fichier_original)
+            ? url('/api/verify/' . $token . '/original')
             : null;
 
         // Timeline : scan courant en tête + historique
@@ -208,6 +208,34 @@ class VerificationController extends Controller
     }
 
     // ── Helpers privés ────────────────────────────────────────────────
+
+    /**
+     * Sert le fichier PDF original en streaming public.
+     * Le fichier est dans storage/app/originals/ (privé) donc inaccessible
+     * via une URL directe — cette route le sert via Laravel.
+     *
+     * GET /api/verify/{token}/original
+     * Aucune authentification requise.
+     */
+    public function streamOriginal(string $token)
+    {
+        $document = Document::where('qr_token', $token)->first();
+
+        if (! $document || ! $document->fichier_original) {
+            return response()->json(['message' => 'Document introuvable.'], 404);
+        }
+
+        $path = storage_path('app/' . $document->fichier_original);
+
+        if (! file_exists($path)) {
+            return response()->json(['message' => 'Fichier original introuvable sur le serveur.'], 404);
+        }
+
+        return response()->file($path, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="document_original.pdf"',
+        ]);
+    }
 
     private function calculerStatutReel(Document $document): string
     {
