@@ -39,7 +39,7 @@ function getIcon(type) { return typeIcon[type?.toLowerCase()] ?? '📄' }
         <p class="eyebrow">Tableau de bord</p>
         <div class="flex items-center flex-wrap gap-3">
           <h1 class="hero-title">
-            Bonjour, {{ auth.user?.prenom ?? 'Émetteur' }} 👋
+            Bonjour, {{ auth.user?.prenom ?? 'Émetteur' }} 
           </h1>
           <span v-if="auth.isCertified && !auth.isParticulier" class="certified-hero-badge">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">

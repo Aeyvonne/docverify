@@ -94,7 +94,7 @@ async function handleSubmit() {
           <!-- Titre -->
           <div class="mb-8">
             <h1 class="font-display font-bold text-3xl text-brown-dark mb-1">
-              Bon retour 👋
+              Bon retour 
             </h1>
             <p class="text-sm text-taupe">
               Pas encore de compte ?

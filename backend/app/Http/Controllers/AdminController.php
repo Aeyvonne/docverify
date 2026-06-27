@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\Notification;
 use App\Models\User;
 use App\Models\Verification;
 use Illuminate\Http\Request;
@@ -10,6 +11,37 @@ use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
+    /**
+     * Retourne les notifications non lues de l'admin connecté.
+     * GET /api/admin/notifications
+     */
+    public function notifications(Request $request)
+    {
+        $notifs = Notification::where('admin_id', $request->user()->id)
+            ->with('demande.user:id,nom,prenom,nom_institution')
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        return response()->json([
+            'notifications'  => $notifs,
+            'non_lues'       => $notifs->where('lu', false)->count(),
+        ]);
+    }
+
+    /**
+     * Marque toutes les notifications de l'admin comme lues.
+     * PATCH /api/admin/notifications/mark-read
+     */
+    public function markNotificationsRead(Request $request)
+    {
+        Notification::where('admin_id', $request->user()->id)
+            ->where('lu', false)
+            ->update(['lu' => true]);
+
+        return response()->json(['message' => 'Notifications marquées comme lues.']);
+    }
+
     /**
      * Liste tous les émetteurs.
      */
