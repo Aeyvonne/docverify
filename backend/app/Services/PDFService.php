@@ -30,12 +30,23 @@ class PDFService
         ?float $positionX = null,
         ?float $positionY = null
     ): string {
-        // FPDI a besoin d'un fichier image sur le disque
+        // Valider que le PDF source est bien dans storage/app/originals/
+        $allowedInputBase = realpath(storage_path('app/originals'));
+        $realInputPath    = realpath($originalPdfPath);
+        if ($realInputPath === false || $allowedInputBase === false
+            || !str_starts_with($realInputPath, $allowedInputBase . DIRECTORY_SEPARATOR)) {
+            throw new \RuntimeException('Chemin PDF source invalide.');
+        }
+
+        // Fichier QR temporaire dans sys_get_temp_dir() uniquement
         $qrTempPath = tempnam(sys_get_temp_dir(), 'qr_');
+        if ($qrTempPath === false) {
+            throw new \RuntimeException('Impossible de créer un fichier temporaire.');
+        }
         file_put_contents($qrTempPath, $qrPngBinary);
 
         $pdf       = new Fpdi();
-        $pageCount = $pdf->setSourceFile($originalPdfPath);
+        $pageCount = $pdf->setSourceFile($realInputPath);
 
         // Récupérer les dimensions de la page 1 pour calculer les ratios
         $firstTplId   = $pdf->importPage(1);
@@ -85,7 +96,7 @@ class PDFService
         $outputPath = storage_path('app/public/certified/' . $filename);
 
         if (! is_dir(dirname($outputPath))) {
-            mkdir(dirname($outputPath), 0777, true);
+            mkdir(dirname($outputPath), 0755, true);
         }
 
         $pdf->Output('F', $outputPath);
@@ -108,7 +119,7 @@ class PDFService
         $outputPath = storage_path('app/reports/' . $filename);
 
         if (! is_dir(dirname($outputPath))) {
-            mkdir(dirname($outputPath), 0777, true);
+            mkdir(dirname($outputPath), 0755, true);
         }
 
         file_put_contents($outputPath, $pdf->output());

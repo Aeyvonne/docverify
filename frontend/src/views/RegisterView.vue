@@ -1,11 +1,4 @@
 <script setup>
-/**
- * Page d'inscription — deux parcours distincts :
- *  - Particulier : nom, prénom, email, téléphone, mot de passe
- *  - Entreprise  : raison sociale, NINEA, RCCM, adresse, responsable, mot de passe
- *
- * Le type choisi est transmis au backend via le champ type_institution.
- */
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -14,30 +7,14 @@ import api from '@/api/axios'
 const auth   = useAuthStore()
 const router = useRouter()
 
-// ── Étape 1 : choix du profil ────────────────────────────────────────
-const profil  = ref(null)   // null | 'particulier' | 'entreprise'
-const loading = ref(false)
+const loading  = ref(false)
 const errorMsg = ref(null)
 
-// ── Formulaire particulier ───────────────────────────────────────────
-const formParticulier = ref({
+const form = ref({
   prenom:                '',
   nom:                   '',
   email:                 '',
   telephone:             '',
-  password:              '',
-  password_confirmation: '',
-  type_institution:      'particulier',
-})
-
-// ── Formulaire entreprise ────────────────────────────────────────────
-const formEntreprise = ref({
-  // Responsable du compte
-  prenom:                '',
-  nom:                   '',
-  email:                 '',
-  telephone:             '',
-  // Informations entreprise
   nom_institution:       '',
   type_institution:      '',
   adresse:               '',
@@ -45,7 +22,12 @@ const formEntreprise = ref({
   password_confirmation: '',
 })
 
-// Règles de validation du mot de passe
+const typesInstitution = [
+  'Université', 'Institut supérieur', 'Lycée / Collège',
+  'École primaire', 'Entreprise privée', 'Administration publique',
+  'ONG / Association', 'Cabinet professionnel', 'Autre',
+]
+
 const pwdRules = computed(() => {
   const pwd = form.value.password
   return [
@@ -55,17 +37,6 @@ const pwdRules = computed(() => {
   ]
 })
 const pwdValid = computed(() => pwdRules.value.every(r => r.ok))
-
-const typesEntreprise = [
-  'Université', 'Institut supérieur', 'Lycée / Collège',
-  'École primaire', 'Entreprise privée', 'Administration publique',
-  'ONG / Association', 'Cabinet professionnel', 'Autre',
-]
-
-// Formulaire actif selon le profil
-const form = computed(() =>
-  profil.value === 'entreprise' ? formEntreprise.value : formParticulier.value
-)
 
 async function handleSubmit() {
   if (form.value.password !== form.value.password_confirmation) {
@@ -83,8 +54,8 @@ async function handleSubmit() {
     const { data } = await api.post('/register', form.value)
     auth.user  = data.user
     auth.token = data.token
-    localStorage.setItem('auth_token', data.token)
-    localStorage.setItem('auth_user',  JSON.stringify(data.user))
+    sessionStorage.setItem('auth_token', data.token)
+    sessionStorage.setItem('auth_user',  JSON.stringify(data.user))
     router.push({ name: 'dashboard' })
   } catch (e) {
     const errors = e.response?.data?.errors
@@ -160,263 +131,139 @@ async function handleSubmit() {
             </RouterLink>
           </div>
 
-          <!-- ══════════════════════════════════════════════════
-               ÉTAPE 1 — Choix du profil
-          ══════════════════════════════════════════════════ -->
-          <Transition name="step-fade" mode="out-in">
-          <div v-if="!profil" key="choix">
+          <!-- En-tête -->
+          <div class="mb-7">
+            <p class="text-xs font-display font-medium tracking-[0.2em] uppercase mb-2"
+               style="color:#8C7A6B;">🏢 Institution / Entreprise</p>
+            <h1 class="font-display font-bold text-3xl" style="color:#3A2E26;">Créer un compte</h1>
+            <p class="text-sm mt-1" style="color:#8C7A6B;">
+              Réservé aux institutions et entreprises officielles.
+            </p>
+          </div>
 
-            <div class="mb-8">
-              <p class="text-xs font-display font-medium tracking-[0.2em] uppercase mb-2"
-                 style="color:#8C7A6B;">Inscription</p>
-              <h1 class="font-display font-bold text-3xl" style="color:#3A2E26;">
-                Vous êtes…
-              </h1>
-              <p class="text-sm mt-1" style="color:#8C7A6B;">
-                Choisissez votre profil pour adapter le formulaire.
+          <!-- Erreur -->
+          <div v-if="errorMsg" class="mb-5 p-4 rounded-xl text-sm"
+               style="background:rgba(181,83,60,0.08); color:#8c3520; border:1px solid rgba(181,83,60,0.25);">
+            {{ errorMsg }}
+          </div>
+
+          <form @submit.prevent="handleSubmit" class="space-y-4" novalidate>
+
+            <!-- Section institution -->
+            <div class="rounded-xl p-4 space-y-4" style="background:#E8DCCB;">
+              <p class="text-xs font-medium uppercase tracking-wide" style="color:#6B4F3F;">
+                Informations de l'organisation
               </p>
-            </div>
 
-            <!-- Deux cartes de choix -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              <!-- Particulier -->
-              <button @click="profil = 'particulier'"
-                      class="card-premium p-7 text-left hover:shadow-lg transition-all group
-                             hover:border-brown cursor-pointer"
-                      style="border:2px solid rgba(217,198,168,0.5);">
-                <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-5"
-                     style="background:#E8DCCB;">
-                  👤
-                </div>
-                <h2 class="font-display font-semibold text-xl mb-2" style="color:#3A2E26;">
-                  Particulier
-                </h2>
-                <p class="text-sm leading-relaxed" style="color:#8C7A6B;">
-                  Enseignant, professionnel indépendant, ou toute personne physique souhaitant certifier des documents.
-                </p>
-                <div class="flex items-center gap-1.5 mt-5 text-sm font-medium"
-                     style="color:#6B4F3F;">
-                  Choisir ce profil
-                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform"
-                       fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
-                  </svg>
-                </div>
-              </button>
-
-              <!-- Entreprise / Institution -->
-              <button @click="profil = 'entreprise'"
-                      class="card-premium p-7 text-left hover:shadow-lg transition-all group
-                             hover:border-brown cursor-pointer"
-                      style="border:2px solid rgba(217,198,168,0.5);">
-                <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-5"
-                     style="background:#E8DCCB;">
-                  🏢
-                </div>
-                <h2 class="font-display font-semibold text-xl mb-2" style="color:#3A2E26;">
-                  Entreprise / Institution
-                </h2>
-                <p class="text-sm leading-relaxed" style="color:#8C7A6B;">
-                  Université, entreprise, administration, ONG ou tout organisme émettant des documents officiels.
-                </p>
-                <div class="flex items-center gap-1.5 mt-5 text-sm font-medium"
-                     style="color:#6B4F3F;">
-                  Choisir ce profil
-                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform"
-                       fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
-                  </svg>
-                </div>
-              </button>
-            </div>
-
-          </div>
-
-          <!-- ══════════════════════════════════════════════════
-               ÉTAPE 2 — Formulaire selon le profil
-          ══════════════════════════════════════════════════ -->
-          <div v-else key="formulaire">
-
-            <!-- En-tête avec retour -->
-            <div class="flex items-center gap-3 mb-6">
-              <button @click="profil = null; errorMsg = null"
-                      class="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-                      style="background:#E8DCCB; color:#4A372C; border:none; cursor:pointer;">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/>
-                </svg>
-              </button>
               <div>
-                <p class="text-xs font-display font-medium tracking-[0.2em] uppercase"
-                   style="color:#8C7A6B;">
-                  {{ profil === 'particulier' ? '👤 Particulier' : '🏢 Entreprise / Institution' }}
-                </p>
-                <h1 class="font-display font-bold text-2xl" style="color:#3A2E26;">
-                  Créer un compte
-                </h1>
-              </div>
-            </div>
-
-            <!-- Erreur -->
-            <div v-if="errorMsg" class="mb-5 p-4 rounded-xl text-sm"
-                 style="background:rgba(181,83,60,0.08); color:#8c3520; border:1px solid rgba(181,83,60,0.25);">
-              {{ errorMsg }}
-            </div>
-
-            <form @submit.prevent="handleSubmit" class="space-y-4" novalidate>
-
-              <!-- ── PARTICULIER ── -->
-              <template v-if="profil === 'particulier'">
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Prénom *</label>
-                    <input v-model="formParticulier.prenom" type="text" class="input-field" required placeholder="Samb" />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Nom *</label>
-                    <input v-model="formParticulier.nom" type="text" class="input-field" required placeholder="Babacar" />
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Email *</label>
-                  <input v-model="formParticulier.email" type="email" class="input-field" required placeholder="mbaye@email.com" />
-                </div>
-
-                <div>
-                  <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Téléphone</label>
-                  <input v-model="formParticulier.telephone" type="tel" class="input-field" placeholder="+221 77 777 77 77" />
-                </div>
-
-              </template>
-
-              <!-- ── ENTREPRISE ── -->
-              <template v-else>
-
-                <!-- Section institution -->
-                <div class="rounded-xl p-4 space-y-4" style="background:#E8DCCB;">
-                  <p class="text-xs font-medium uppercase tracking-wide" style="color:#6B4F3F;">
-                    Informations de l'organisation
-                  </p>
-
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Nom de l'organisation *</label>
-                    <input v-model="formEntreprise.nom_institution" type="text" class="input-field" required
-                           placeholder="Ex: F2IP" />
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Type *</label>
-                    <select v-model="formEntreprise.type_institution" class="input-field" required>
-                      <option value="">Choisir le type…</option>
-                      <option v-for="t in typesEntreprise" :key="t" :value="t.toLowerCase()">{{ t }}</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Adresse</label>
-                    <input v-model="formEntreprise.adresse" type="text" class="input-field"
-                           placeholder="Adresse complète de l'organisation" />
-                  </div>
-                </div>
-
-                <!-- Section responsable -->
-                <div class="rounded-xl p-4 space-y-4" style="background:#F2E9DE; border:1px solid #D9C6A8;">
-                  <p class="text-xs font-medium uppercase tracking-wide" style="color:#6B4F3F;">
-                    Responsable du compte
-                  </p>
-
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Prénom *</label>
-                      <input v-model="formEntreprise.prenom" type="text" class="input-field" required />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Nom *</label>
-                      <input v-model="formEntreprise.nom" type="text" class="input-field" required />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Email professionnel *</label>
-                    <input v-model="formEntreprise.email" type="email" class="input-field" required
-                           placeholder="responsable@entreprise.com" />
-                  </div>
-
-                  <div>
-                    <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Téléphone</label>
-                    <input v-model="formEntreprise.telephone" type="tel" class="input-field"
-                           placeholder="+221 77 777 77 77" />
-                  </div>
-                </div>
-
-              </template>
-
-              <!-- ── Mot de passe — commun aux deux profils ── -->
-              <div class="flex items-center gap-3 py-1">
-                <div class="flex-1 h-px" style="background:#D9C6A8;"></div>
-                <span class="text-xs" style="color:#8C7A6B;">Sécurité</span>
-                <div class="flex-1 h-px" style="background:#D9C6A8;"></div>
+                <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
+                  Nom de l'organisation *
+                </label>
+                <input v-model="form.nom_institution" type="text" class="input-field" required
+                       placeholder="Ex: Université de Dakar" />
               </div>
 
               <div>
                 <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
-                  Mot de passe * <span class="normal-case opacity-70">(min. 8 caractères)</span>
+                  Type *
                 </label>
-                <input v-model="form.password" type="password" class="input-field" required
-                       placeholder="••••••••" autocomplete="new-password" />
+                <select v-model="form.type_institution" class="input-field" required>
+                  <option value="">Choisir le type…</option>
+                  <option v-for="t in typesInstitution" :key="t" :value="t.toLowerCase()">{{ t }}</option>
+                </select>
+              </div>
 
-                <!-- Indicateur des règles en temps réel -->
-                <div v-if="form.password.length > 0" class="mt-2 flex flex-col gap-1">
-                  <div v-for="rule in pwdRules" :key="rule.label"
-                       class="flex items-center gap-2">
-                    <span class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center text-xs"
-                          :style="rule.ok
-                            ? 'background:rgba(124,144,112,0.2); color:#4a6640;'
-                            : 'background:rgba(181,83,60,0.1); color:#B5533C;'">
-                      {{ rule.ok ? '✓' : '×' }}
-                    </span>
-                    <span class="text-xs" :style="rule.ok ? 'color:#4a6640;' : 'color:#8C7A6B;'">
-                      {{ rule.label }}
-                    </span>
-                  </div>
+              <div>
+                <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
+                  Adresse
+                </label>
+                <input v-model="form.adresse" type="text" class="input-field"
+                       placeholder="Adresse complète de l'organisation" />
+              </div>
+            </div>
+
+            <!-- Section responsable -->
+            <div class="rounded-xl p-4 space-y-4" style="background:#F2E9DE; border:1px solid #D9C6A8;">
+              <p class="text-xs font-medium uppercase tracking-wide" style="color:#6B4F3F;">
+                Responsable du compte
+              </p>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Prénom *</label>
+                  <input v-model="form.prenom" type="text" class="input-field" required />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">Nom *</label>
+                  <input v-model="form.nom" type="text" class="input-field" required />
                 </div>
               </div>
 
               <div>
                 <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
-                  Confirmer le mot de passe *
+                  Email professionnel *
                 </label>
-                <input v-model="form.password_confirmation" type="password" class="input-field" required
-                       placeholder="••••••••" autocomplete="new-password" />
+                <input v-model="form.email" type="email" class="input-field" required
+                       placeholder="responsable@institution.com" />
               </div>
 
-              <!-- Bouton -->
-              <button type="submit" :disabled="loading" class="btn-primary w-full" style="margin-top:1.5rem;">
-                <span v-if="!loading">Créer mon compte</span>
-                <span v-else class="flex items-center justify-center gap-2">
-                  <span class="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin"></span>
-                  Création…
-                </span>
-              </button>
+              <div>
+                <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
+                  Téléphone
+                </label>
+                <input v-model="form.telephone" type="tel" class="input-field"
+                       placeholder="+221 77 777 77 77" />
+              </div>
+            </div>
 
-              
+            <!-- Sécurité -->
+            <div class="flex items-center gap-3 py-1">
+              <div class="flex-1 h-px" style="background:#D9C6A8;"></div>
+              <span class="text-xs" style="color:#8C7A6B;">Sécurité</span>
+              <div class="flex-1 h-px" style="background:#D9C6A8;"></div>
+            </div>
 
-            </form>
-          </div>
-          </Transition>
+            <div>
+              <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
+                Mot de passe * <span class="normal-case opacity-70">(min. 8 caractères)</span>
+              </label>
+              <input v-model="form.password" type="password" class="input-field" required
+                     placeholder="••••••••" autocomplete="new-password" />
+              <div v-if="form.password.length > 0" class="mt-2 flex flex-col gap-1">
+                <div v-for="rule in pwdRules" :key="rule.label" class="flex items-center gap-2">
+                  <span class="w-3.5 h-3.5 rounded-full flex-shrink-0 flex items-center justify-center text-xs"
+                        :style="rule.ok
+                          ? 'background:rgba(124,144,112,0.2); color:#4a6640;'
+                          : 'background:rgba(181,83,60,0.1); color:#B5533C;'">
+                    {{ rule.ok ? '✓' : '×' }}
+                  </span>
+                  <span class="text-xs" :style="rule.ok ? 'color:#4a6640;' : 'color:#8C7A6B;'">
+                    {{ rule.label }}
+                  </span>
+                </div>
+              </div>
+            </div>
 
+            <div>
+              <label class="block text-xs font-medium uppercase tracking-wide mb-1.5" style="color:#8C7A6B;">
+                Confirmer le mot de passe *
+              </label>
+              <input v-model="form.password_confirmation" type="password" class="input-field" required
+                     placeholder="••••••••" autocomplete="new-password" />
+            </div>
+
+            <button type="submit" :disabled="loading" class="btn-primary w-full" style="margin-top:1.5rem;">
+              <span v-if="!loading">Créer mon compte</span>
+              <span v-else class="flex items-center justify-center gap-2">
+                <span class="w-4 h-4 border-2 border-cream/40 border-t-cream rounded-full animate-spin"></span>
+                Création…
+              </span>
+            </button>
+
+          </form>
         </div>
       </div>
     </div>
 
   </div>
 </template>
-
-<style scoped>
-.step-fade-enter-active, .step-fade-leave-active { transition: all 0.25s ease; }
-.step-fade-enter-from  { opacity: 0; transform: translateX(20px); }
-.step-fade-leave-to    { opacity: 0; transform: translateX(-20px); }
-</style>

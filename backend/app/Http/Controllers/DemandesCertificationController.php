@@ -28,13 +28,6 @@ class DemandesCertificationController extends Controller
             ], 422);
         }
 
-        // Les particuliers ne peuvent pas demander une certification institutionnelle
-        if ($user->type_institution === 'particulier') {
-            return response()->json([
-                'message' => 'Les comptes particuliers ne peuvent pas soumettre de demande de certification.',
-            ], 403);
-        }
-
         // Bloquer si une demande est déjà en attente
         $demandeEnCours = DemandesCertification::where('user_id', $user->id)
             ->where('statut', 'en_attente')
@@ -121,7 +114,16 @@ class DemandesCertificationController extends Controller
      */
     public function downloadJustificatif(DemandesCertification $demande)
     {
-        $path = storage_path('app/' . $demande->fichier_preuve);
+        // Laravel 11 stocke les fichiers 'local' dans storage/app/private/
+        $relativePath = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $demande->fichier_preuve);
+
+        // Essayer d'abord storage/app/private/ (Laravel 11)
+        $path = storage_path('app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . $relativePath);
+
+        // Fallback sur storage/app/ (Laravel 10 et versions antérieures)
+        if (! file_exists($path)) {
+            $path = storage_path('app' . DIRECTORY_SEPARATOR . $relativePath);
+        }
 
         if (! file_exists($path)) {
             return response()->json(['message' => 'Fichier introuvable.'], 404);

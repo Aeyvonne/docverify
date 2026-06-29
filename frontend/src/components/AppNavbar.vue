@@ -62,8 +62,7 @@ function formatDate(d) {
         <template v-if="auth.isEmetteur">
           <RouterLink to="/dashboard"     class="nav-link">Tableau de bord</RouterLink>
           <RouterLink to="/documents"     class="nav-link">Mes documents</RouterLink>
-          <!-- Certification : uniquement pour les institutions, pas les particuliers -->
-          <RouterLink v-if="!auth.isParticulier" to="/certification" class="nav-link">Certification</RouterLink>
+          <RouterLink to="/certification" class="nav-link">Certification</RouterLink>
           <RouterLink to="/documents/new" class="nav-btn-primary">+ Certifier</RouterLink>
         </template>
 
@@ -172,7 +171,7 @@ function formatDate(d) {
           <template v-if="auth.isEmetteur">
             <RouterLink to="/dashboard"     class="nav-link" @click="menuOpen=false">Tableau de bord</RouterLink>
             <RouterLink to="/documents"     class="nav-link" @click="menuOpen=false">Mes documents</RouterLink>
-            <RouterLink v-if="!auth.isParticulier" to="/certification" class="nav-link" @click="menuOpen=false">Certification</RouterLink>
+            <RouterLink to="/certification" class="nav-link" @click="menuOpen=false">Certification</RouterLink>
             <RouterLink to="/documents/new" class="nav-link font-medium" @click="menuOpen=false">+ Certifier</RouterLink>
           </template>
           <template v-else-if="auth.isAdmin">

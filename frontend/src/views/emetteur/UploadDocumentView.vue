@@ -49,12 +49,8 @@ const typesInstitution = [
 ]
 
 const typesDisponibles = computed(() => {
-  // Particulier → uniquement les types personnels, jamais les types institutionnels
-  if (auth.isParticulier) return typesParticulier
-
   // Institution non certifiée → types de base seulement
   if (!auth.isCertified) return typesParticulier
-
   // Institution certifiée → accès complet
   return [...typesParticulier, ...typesInstitution]
 })
@@ -201,7 +197,7 @@ async function handleSubmit() {
                 </option>
               </select>
               <!-- Message informatif pour les institutions non certifiées -->
-              <p v-if="!auth.isParticulier && !auth.isCertified"
+              <p v-if="!auth.isCertified"
                  class="text-xs mt-1.5" style="color:#8C7A6B;">
                 <RouterLink to="/certification"
                             class="underline underline-offset-2 hover:text-brown transition-colors">

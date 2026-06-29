@@ -14,35 +14,44 @@ export function useDownload() {
 
   /**
    * Télécharge un fichier depuis une URL protégée.
-   * @param {string} url       — ex: /documents/1/download
+   * @param {string} url       — ex: /documents/1/download (chemin relatif uniquement)
    * @param {string} filename  — nom suggéré pour le fichier sauvegardé
    */
   async function download(url, filename) {
+    // Bloquer toute URL absolue ou non-relative pour prévenir le SSRF
+    if (!url || typeof url !== 'string' || !url.startsWith('/')) {
+      downloadError.value = 'URL de téléchargement invalide.'
+      return
+    }
+
+    // Sanitiser le nom de fichier pour éviter l'injection via link.download
+    const safeFilename = filename
+      ? String(filename).replace(/[^a-zA-Z0-9._\-\s]/g, '_').slice(0, 200)
+      : 'fichier'
+
     downloading.value  = true
     downloadError.value = null
 
     try {
       const response = await api.get(url, {
-        responseType: 'blob', // important : réponse binaire
+        responseType: 'blob',
       })
 
-      // Créer un lien temporaire pointant vers le blob
-      const blob    = new Blob([response.data], { type: 'application/pdf' })
+      const contentType = response.headers['content-type'] || 'application/octet-stream'
+      const blob    = new Blob([response.data], { type: contentType })
       const blobUrl = URL.createObjectURL(blob)
 
       const link    = document.createElement('a')
       link.href     = blobUrl
-      link.download = filename
+      link.download = safeFilename
       document.body.appendChild(link)
       link.click()
 
-      // Nettoyage immédiat
       link.remove()
       URL.revokeObjectURL(blobUrl)
 
     } catch (e) {
       downloadError.value = e.response?.data?.message ?? 'Téléchargement impossible.'
-      console.error('[useDownload]', e)
     } finally {
       downloading.value = false
     }

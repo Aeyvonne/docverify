@@ -26,16 +26,15 @@ class AuthController extends Controller
                 'regex:/[^a-zA-Z0-9]/',
             ],
             'telephone'        => ['nullable', 'string', 'max:20'],
-            'nom_institution'  => ['nullable', 'string', 'max:255'],
-            'type_institution' => ['nullable', 'string', 'max:100'],
+            'nom_institution'  => ['required', 'string', 'max:255'],
+            'type_institution' => ['required', 'string', 'max:100'],
             'adresse'          => ['nullable', 'string', 'max:255'],
         ], [
+            'nom_institution.required'  => 'Le nom de l\'institution est obligatoire.',
+            'type_institution.required' => 'Le type d\'institution est obligatoire.',
             'password.min'   => 'Le mot de passe doit contenir au moins 8 caractères.',
-            'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un caractère spécial (ex: @, #, !, %).',
+            'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un caractère spécial.',
         ]);
-
-        // Un particulier est auto-certifié : pas besoin de validation admin
-        $isParticulier = ($data['type_institution'] ?? null) === 'particulier';
 
         $user = User::create([
             'nom'              => $data['nom'],
@@ -44,13 +43,11 @@ class AuthController extends Controller
             'password'         => Hash::make($data['password']),
             'role'             => 'emetteur',
             'telephone'        => $data['telephone'] ?? null,
-            'nom_institution'  => $data['nom_institution'] ?? null,
-            'type_institution' => $data['type_institution'] ?? null,
+            'nom_institution'  => $data['nom_institution'],
+            'type_institution' => $data['type_institution'],
             'adresse'          => $data['adresse'] ?? null,
             'is_active'        => true,
-            // Particulier → certifié automatiquement (pas de validation admin nécessaire)
-            // Institution → en attente de certification par l'admin
-            'is_certified'     => $isParticulier,
+            'is_certified'     => false, // toujours en attente de validation admin
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

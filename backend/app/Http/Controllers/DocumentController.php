@@ -38,21 +38,13 @@ class DocumentController extends Controller
             return response()->json(['message' => 'Non authentifié.'], 401);
         }
 
-        // Types réservés aux institutions certifiées (jamais accessibles aux particuliers)
+        // Types réservés aux institutions certifiées
         $typesInstitution = ['offre_emploi', 'appel_offres', 'communique', 'decision', 'convention', 'rapport'];
-        $isParticulier    = $emetteur->type_institution === 'particulier';
 
-        if (in_array($validated['type'], $typesInstitution)) {
-            if ($isParticulier) {
-                return response()->json([
-                    'message' => 'Les particuliers ne peuvent pas émettre ce type de document.',
-                ], 403);
-            }
-            if (! $emetteur->is_certified) {
-                return response()->json([
-                    'message' => 'Votre institution doit être certifiée pour émettre ce type de document.',
-                ], 403);
-            }
+        if (in_array($validated['type'], $typesInstitution) && ! $emetteur->is_certified) {
+            return response()->json([
+                'message' => 'Votre institution doit être certifiée pour émettre ce type de document.',
+            ], 403);
         }
 
         $emetteurId = $emetteur->id;
@@ -76,7 +68,7 @@ class DocumentController extends Controller
         // 2. Génération du token et du QR
         $token     = $qrCodeService->generateToken();
         // Le QR pointe vers le FRONTEND (Vue Router gère /verify/:token)
-        $verifyUrl = env('FRONTEND_URL', config('app.url')) . '/verify/' . $token;
+        $verifyUrl = config('app.frontend_url') . '/verify/' . $token;
         $qrPng     = $qrCodeService->renderQrPng($verifyUrl, 260);
 
         // 3. Sauvegarde du fichier original
@@ -84,7 +76,7 @@ class DocumentController extends Controller
         $originalAbsolute = storage_path('app/originals/' . $filename);
 
         if (! is_dir(dirname($originalAbsolute))) {
-            mkdir(dirname($originalAbsolute), 0777, true);
+            mkdir(dirname($originalAbsolute), 0755, true);
         }
         $uploaded->move(dirname($originalAbsolute), $filename);
         $originalPath = 'originals/' . $filename;
@@ -204,30 +196,38 @@ class DocumentController extends Controller
 
         $stored = $document->pdf_certifie;
 
-        // La colonne peut contenir soit un chemin absolu, soit un chemin relatif
-        // selon la version du code qui a créé le document.
-        if (Str::startsWith($stored, [storage_path(), 'C:\\', 'C:/'])) {
-            // Chemin absolu stocké directement → normaliser les séparateurs
-            $path = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $stored);
-        } else {
-            // Chemin relatif → préfixer avec storage/app/public/
-            $path = storage_path('app' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . ltrim(
-                str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $stored),
-                DIRECTORY_SEPARATOR
-            ));
+        // Bloquer toute tentative de path traversal
+        if (str_contains($stored, '..') || preg_match('/[\x00-\x1f]/', $stored)) {
+            return response()->json(['message' => 'Chemin de fichier invalide.'], 400);
         }
 
+        // Seuls les chemins relatifs sont acceptés — les chemins absolus ne sont plus stockés
+        if (Str::startsWith($stored, [DIRECTORY_SEPARATOR, 'C:\\', 'C:/'])) {
+            return response()->json(['message' => 'Format de chemin non supporté.'], 400);
+        }
+
+        $path = storage_path('app' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . ltrim(
+            str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $stored),
+            DIRECTORY_SEPARATOR
+        ));
+
+        // Vérifier que le chemin résolu est bien dans storage/app/public/
+        $allowedBase = realpath(storage_path('app/public'));
+        $realPath    = realpath($path);
+        if ($realPath === false || ! str_starts_with($realPath, $allowedBase . DIRECTORY_SEPARATOR)) {
+            return response()->json(['message' => 'Accès non autorisé.'], 403);
+        }
+
+        $path = $realPath;
+
         if (! file_exists($path)) {
-            return response()->json([
-                'message' => 'Fichier introuvable. Chemin : ' . $path,
-            ], 404);
+            return response()->json(['message' => 'Fichier introuvable.'], 404);
         }
 
         $filename = 'DocVerify_' . Str::slug($document->titre) . '.pdf';
 
         return response()->download($path, $filename, [
-            'Content-Type'              => 'application/pdf',
-            'Access-Control-Allow-Origin' => config('cors.allowed_origins')[0] ?? '*',
+            'Content-Type' => 'application/pdf',
         ]);
     }
 
@@ -262,8 +262,9 @@ class DocumentController extends Controller
                 ];
             }
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('pageDimensions: impossible de lire le PDF', ['error' => $e->getMessage()]);
             return response()->json([
-                'message' => 'Impossible de lire le fichier PDF : ' . $e->getMessage(),
+                'message' => 'Impossible de lire le fichier PDF. Assurez-vous que le fichier est valide.',
             ], 422);
         }
 

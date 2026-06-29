@@ -49,7 +49,7 @@ class AdminController extends Controller
     {
         $emetteurs = User::where('role', 'emetteur')
             ->latest()
-            ->get();
+            ->get(['id', 'nom', 'prenom', 'email', 'telephone', 'nom_institution', 'type_institution', 'is_active', 'is_certified', 'created_at', 'last_login_at']);
 
         return response()->json($emetteurs);
     }
@@ -63,7 +63,7 @@ class AdminController extends Controller
             'nom'              => ['required', 'string', 'max:100'],
             'prenom'           => ['required', 'string', 'max:100'],
             'email'            => ['required', 'email', 'unique:users,email'],
-            'password'         => ['required', 'string', 'min:8'],
+            'password'         => ['required', 'string', 'min:8', 'regex:/[A-Z]/', 'regex:/[^a-zA-Z0-9]/'],
             'telephone'        => ['nullable', 'string', 'max:20'],
             'nom_institution'  => ['nullable', 'string', 'max:255'],
             'type_institution' => ['nullable', 'string', 'max:100'],
@@ -204,7 +204,7 @@ class AdminController extends Controller
             'nom'       => ['required', 'string', 'max:100'],
             'prenom'    => ['required', 'string', 'max:100'],
             'email'     => ['required', 'email', 'unique:users,email'],
-            'password'  => ['required', 'string', 'min:8'],
+            'password'  => ['required', 'string', 'min:8', 'regex:/[A-Z]/', 'regex:/[^a-zA-Z0-9]/'],
             'telephone' => ['nullable', 'string', 'max:20'],
         ]);
 

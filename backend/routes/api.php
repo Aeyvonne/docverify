@@ -12,7 +12,7 @@ use App\Http\Controllers\DemandesCertificationController;
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
 // ── Authentification ──────────────────────────────────────────────────
-Route::middleware('guest')->group(function () {
+Route::middleware(['guest', 'throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
 });
@@ -67,7 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // ── Vérification publique (aucune authentification) ───────────────────
-Route::prefix('verify')->group(function () {
+Route::prefix('verify')->middleware('throttle:60,1')->group(function () {
     Route::get('/{token}',          [VerificationController::class, 'verify']);
     Route::get('/{token}/original', [VerificationController::class, 'streamOriginal']);
     Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);

@@ -48,7 +48,7 @@ class VerificationController extends Controller
         $timeline = collect([[
             'id'          => $verification->id,
             'statut'      => $verification->statut_au_scan,
-            'ip_address'  => $verification->ip_address,
+            'ip_address'  => $this->maskIp($verification->ip_address),
             'ville'        => $verification->ville,
             'pays'         => $verification->pays,
             'verified_at'  => $verification->verified_at->toIso8601String(),
@@ -57,7 +57,7 @@ class VerificationController extends Controller
             $document->verifications->map(fn($v) => [
                 'id'          => $v->id,
                 'statut'      => $v->statut_au_scan,
-                'ip_address'  => $v->ip_address,
+                'ip_address'  => $this->maskIp($v->ip_address),
                 'ville'        => $v->ville,
                 'pays'         => $v->pays,
                 'verified_at'  => $v->verified_at->toIso8601String(),
@@ -132,11 +132,21 @@ class VerificationController extends Controller
         }
 
         $hashUploaded  = hash_file('sha256', $request->file('fichier')->getRealPath());
-        $certifiedPath = storage_path('app/public/' . $document->pdf_certifie);
+
+        // Confiner le chemin certifié dans storage/app/public/
+        $allowedBase   = realpath(storage_path('app/public'));
+        $certifiedPath = realpath(storage_path('app/public/' . $document->pdf_certifie));
+
+        if ($certifiedPath === false || $allowedBase === false
+            || !str_starts_with($certifiedPath, $allowedBase . DIRECTORY_SEPARATOR)) {
+            \Illuminate\Support\Facades\Log::error('checkIntegrity: chemin invalide', ['document_id' => $document->id]);
+            return response()->json(['message' => 'Une erreur est survenue lors de la vérification. Veuillez réessayer.'], 500);
+        }
 
         if (! file_exists($certifiedPath)) {
+            \Illuminate\Support\Facades\Log::error('checkIntegrity: fichier certifié introuvable', ['document_id' => $document->id]);
             return response()->json([
-                'message' => 'Le fichier certifié de référence est introuvable sur le serveur.',
+                'message' => 'Une erreur est survenue lors de la vérification. Veuillez réessayer.',
             ], 500);
         }
 
@@ -145,19 +155,15 @@ class VerificationController extends Controller
 
         if ($integre) {
             return response()->json([
-                'integre'        => true,
-                'message'        => 'Le document est intègre. Les hashs correspondent.',
-                'hash_fourni'    => $hashUploaded,
-                'hash_reference' => $hashReference,
+                'integre' => true,
+                'message' => 'Le document est intègre. Les hashs correspondent.',
             ]);
         }
 
         return response()->json([
-            'integre'        => false,
-            'statut'         => 'falsifie',
-            'message'        => 'Ce document a été modifié après sa certification.',
-            'hash_fourni'    => $hashUploaded,
-            'hash_reference' => $hashReference,
+            'integre' => false,
+            'statut'  => 'falsifie',
+            'message' => 'Ce document a été modifié après sa certification.',
         ], 422);
     }
 
@@ -225,16 +231,43 @@ class VerificationController extends Controller
             return response()->json(['message' => 'Document introuvable.'], 404);
         }
 
-        $path = storage_path('app/' . $document->fichier_original);
-
-        if (! file_exists($path)) {
-            return response()->json(['message' => 'Fichier original introuvable sur le serveur.'], 404);
+        // Ne pas servir le fichier si le document est révoqué
+        if ($document->statut === 'revoque') {
+            return response()->json(['message' => 'Ce document a été révoqué et n\'est plus accessible.'], 403);
         }
 
-        return response()->file($path, [
+        // Confiner dans storage/app/originals/
+        $allowedOrigBase = realpath(storage_path('app/originals'));
+        $realOrigPath    = realpath(storage_path('app/' . $document->fichier_original));
+
+        if ($realOrigPath === false || $allowedOrigBase === false
+            || !str_starts_with($realOrigPath, $allowedOrigBase . DIRECTORY_SEPARATOR)) {
+            return response()->json(['message' => 'Fichier introuvable sur le serveur.'], 404);
+        }
+
+        if (! file_exists($realOrigPath)) {
+            return response()->json(['message' => 'Fichier introuvable sur le serveur.'], 404);
+        }
+
+        return response()->file($realOrigPath, [
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="document_original.pdf"',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    private function maskIp(string $ip): string
+    {
+        // IPv4 : masquer le dernier octet (ex: 192.168.1.x)
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            return preg_replace('/\d+$/', 'x', $ip);
+        }
+        // IPv6 : masquer les 4 derniers groupes
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            $parts = explode(':', $ip);
+            return implode(':', array_slice($parts, 0, 4)) . ':x:x:x:x';
+        }
+        return 'x.x.x.x';
     }
 
     private function calculerStatutReel(Document $document): string
