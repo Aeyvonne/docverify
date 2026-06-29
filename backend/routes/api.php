@@ -6,13 +6,15 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\VerificationController;
-use App\Http\Controllers\DemandesCertificationController;
+use App\Services\HashService;
+use App\Services\QRCodeService;
+use App\Services\PDFService;
 
 // ── Health check ──────────────────────────────────────────────────────
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
 // ── Authentification ──────────────────────────────────────────────────
-Route::middleware('guest')->group(function () {
+Route::middleware(['guest', 'throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
 });
@@ -43,21 +45,23 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::patch('/emetteurs/{user}/toggle',  [AdminController::class, 'toggleActive']);
     Route::patch('/emetteurs/{user}/certify', [AdminController::class, 'certifyEmetteur']);
     Route::patch('/emetteurs/{user}/revoke',  [AdminController::class, 'revokeEmetteurCertification']);
-
-    // Gestion des demandes de certification
-    Route::get('/demandes',                           [DemandesCertificationController::class, 'index']);
-    Route::get('/demandes/{demande}/justificatif',    [DemandesCertificationController::class, 'downloadJustificatif']);
-    Route::patch('/demandes/{demande}/refuse',        [DemandesCertificationController::class, 'refuse']);
+    Route::get('/stats',                      [AdminController::class, 'dashboardStats']);
 });
 
 // ── Documents (émetteurs authentifiés) ────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/documents',                         [DocumentController::class, 'index']);
-    Route::post('/documents',                        [DocumentController::class, 'store']);
-    Route::patch('/documents/{document}/revoke',     [DocumentController::class, 'revoke']);
-    Route::get('/documents/{document}/download',     [DocumentController::class, 'download']);
-    // Dimensions des pages PDF pour le placement du QR côté frontend
-    Route::post('/documents/page-dimensions',        [DocumentController::class, 'pageDimensions']);
+    Route::post('/documents',                          [DocumentController::class, 'store']);
+    Route::get('/documents',                           [DocumentController::class, 'index']);
+    Route::patch('/documents/{document}/revoke',       [DocumentController::class, 'revoke']);
+    // Retourne les dimensions (mm) de chaque page — utilisé par le frontend pour le placement QR
+    Route::post('/documents/page-dimensions',          [DocumentController::class, 'pageDimensions']);
+});
+
+// Vérification publique (aucune authentification requise)
+Route::prefix('verify')->group(function () {
+    Route::get('/{token}',                  [VerificationController::class, 'verify']);
+    Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);
+    Route::get('/{token}/report',           [VerificationController::class, 'downloadReport']);
 });
 
 // ── Demandes de certification (émetteurs authentifiés) ────────────────
@@ -67,7 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // ── Vérification publique (aucune authentification) ───────────────────
-Route::prefix('verify')->group(function () {
+Route::prefix('verify')->middleware('throttle:60,1')->group(function () {
     Route::get('/{token}',          [VerificationController::class, 'verify']);
     Route::get('/{token}/original', [VerificationController::class, 'streamOriginal']);
     Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);

@@ -22,6 +22,10 @@ class PDFService
      * @param  float|null  $positionX        X en mm sur la page 1 (null = automatique)
      * @param  float|null  $positionY        Y en mm sur la page 1 (null = automatique)
      */
+    /**
+     * @param  float|null  $positionX  Position X en mm depuis le bord gauche (null = automatique)
+     * @param  float|null  $positionY  Position Y en mm depuis le bord supérieur (null = automatique)
+     */
     public function certifyPdf(
         string $originalPdfPath,
         string $qrPngBinary,
@@ -30,12 +34,15 @@ class PDFService
         ?float $positionX = null,
         ?float $positionY = null
     ): string {
-        // FPDI a besoin d'un fichier image sur le disque
+        // FPDI a besoin d'un vrai fichier image, pas de données binaires en mémoire
         $qrTempPath = tempnam(sys_get_temp_dir(), 'qr_');
+        if ($qrTempPath === false) {
+            throw new \RuntimeException('Impossible de créer un fichier temporaire.');
+        }
         file_put_contents($qrTempPath, $qrPngBinary);
 
         $pdf       = new Fpdi();
-        $pageCount = $pdf->setSourceFile($originalPdfPath);
+        $pageCount = $pdf->setSourceFile($realInputPath);
 
         // Récupérer les dimensions de la page 1 pour calculer les ratios
         $firstTplId   = $pdf->importPage(1);
@@ -62,19 +69,9 @@ class PDFService
             $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
             $pdf->useTemplate($tplId);
 
-            if ($pageNo === 1) {
-                // Page 1 : position exacte choisie par l'émetteur
-                $x = $x1;
-                $y = $y1;
-            } else {
-                // Pages suivantes : position proportionnelle
-                $x = $ratioX * $size['width'];
-                $y = $ratioY * $size['height'];
-            }
-
-            // S'assurer que le QR reste dans les limites de la page
-            $x = max(0, min($x, $size['width']  - $qrSizeMm));
-            $y = max(0, min($y, $size['height'] - $qrSizeMm));
+            // Position libre si fournie, sinon coin bas-droit par défaut
+            $x = $positionX ?? ($size['width']  - $qrSizeMm - $marginMm);
+            $y = $positionY ?? ($size['height'] - $qrSizeMm - $marginMm);
 
             $pdf->Image($qrTempPath, $x, $y, $qrSizeMm, $qrSizeMm, 'PNG');
         }
@@ -85,7 +82,7 @@ class PDFService
         $outputPath = storage_path('app/public/certified/' . $filename);
 
         if (! is_dir(dirname($outputPath))) {
-            mkdir(dirname($outputPath), 0777, true);
+            mkdir(dirname($outputPath), 0755, true);
         }
 
         $pdf->Output('F', $outputPath);
@@ -108,7 +105,7 @@ class PDFService
         $outputPath = storage_path('app/reports/' . $filename);
 
         if (! is_dir(dirname($outputPath))) {
-            mkdir(dirname($outputPath), 0777, true);
+            mkdir(dirname($outputPath), 0755, true);
         }
 
         file_put_contents($outputPath, $pdf->output());

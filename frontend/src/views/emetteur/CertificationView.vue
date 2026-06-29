@@ -118,22 +118,6 @@ function recommencer() {
 
     <template v-else>
 
-      <!-- ── Particulier : accès bloqué ── -->
-      <div v-if="auth.isParticulier" class="card-premium p-10 text-center fade-in-up">
-        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-             style="background:rgba(201,154,60,0.1);">
-          <span class="text-3xl">🔒</span>
-        </div>
-        <h1 class="font-display font-semibold text-2xl text-brown-dark mb-2">Non disponible</h1>
-        <p class="text-sm text-taupe leading-relaxed mb-6">
-          La certification est réservée aux institutions et entreprises.
-          Les comptes particuliers n'ont pas accès à cette fonctionnalité.
-        </p>
-        <RouterLink to="/dashboard" class="btn-secondary inline-flex text-sm px-5">
-          ← Retour au tableau de bord
-        </RouterLink>
-      </div>
-
       <!-- ── Déjà certifié ── -->
       <div v-else-if="auth.isCertified" class="card-premium p-10 text-center fade-in-up">
         <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
