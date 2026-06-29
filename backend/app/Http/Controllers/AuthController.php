@@ -20,11 +20,20 @@ class AuthController extends Controller
             'nom'              => ['required', 'string', 'max:100'],
             'prenom'           => ['required', 'string', 'max:100'],
             'email'            => ['required', 'email', 'unique:users,email'],
-            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+            'password'         => [
+                'required', 'string', 'min:8', 'confirmed',
+                'regex:/[A-Z]/',
+                'regex:/[^a-zA-Z0-9]/',
+            ],
             'telephone'        => ['nullable', 'string', 'max:20'],
-            'nom_institution'  => ['nullable', 'string', 'max:255'],
-            'type_institution' => ['nullable', 'string', 'max:100'],
+            'nom_institution'  => ['required', 'string', 'max:255'],
+            'type_institution' => ['required', 'string', 'max:100'],
             'adresse'          => ['nullable', 'string', 'max:255'],
+        ], [
+            'nom_institution.required'  => 'Le nom de l\'institution est obligatoire.',
+            'type_institution.required' => 'Le type d\'institution est obligatoire.',
+            'password.min'   => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un caractère spécial.',
         ]);
 
         $user = User::create([
@@ -32,13 +41,13 @@ class AuthController extends Controller
             'prenom'           => $data['prenom'],
             'email'            => $data['email'],
             'password'         => Hash::make($data['password']),
-            'role'             => 'emetteur', // forcé : pas d'admin via l'inscription
+            'role'             => 'emetteur',
             'telephone'        => $data['telephone'] ?? null,
-            'nom_institution'  => $data['nom_institution'] ?? null,
-            'type_institution' => $data['type_institution'] ?? null,
+            'nom_institution'  => $data['nom_institution'],
+            'type_institution' => $data['type_institution'],
             'adresse'          => $data['adresse'] ?? null,
             'is_active'        => true,
-            'is_certified'     => false,
+            'is_certified'     => false, // toujours en attente de validation admin
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;

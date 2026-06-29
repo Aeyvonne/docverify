@@ -13,6 +13,12 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class DocumentController extends Controller
 {
+    /**
+     * Certifie un nouveau document : hash SHA-256, génération QR, tamponnage PDF.
+     *
+     * POST /api/documents
+     * Protégé : auth:sanctum
+     */
     public function store(Request $request, HashService $hashService, QRCodeService $qrCodeService, PDFService $pdfService)
     {
         $validated = $request->validate([
@@ -62,6 +68,69 @@ class DocumentController extends Controller
             ], 401);
         }
 
+        // Types réservés aux institutions certifiées
+        $typesInstitution = ['offre_emploi', 'appel_offres', 'communique', 'decision', 'convention', 'rapport'];
+
+        if (in_array($validated['type'], $typesInstitution) && ! $emetteur->is_certified) {
+            return response()->json([
+                'message' => 'Votre institution doit être certifiée pour émettre ce type de document.',
+            ], 403);
+        }
+
+        $emetteurId = $emetteur->id;
+
+        $uploaded = $request->file('fichier_original');
+
+        // 1. Hash du fichier original (avant tamponnage)
+        $hash = $hashService->hashSha256($uploaded);
+
+        // Vérifier que ce document n'a pas déjà été certifié (doublon par hash SHA-256)
+        $existant = Document::where('hash_sha256', $hash)->first();
+        if ($existant) {
+            return response()->json([
+                'message'    => 'Ce document a déjà été certifié.',
+                'document_id' => $existant->id,
+                'qr_token'   => $existant->qr_token,
+                'certifie_le'=> $existant->created_at?->toDateString(),
+            ], 422);
+        }
+
+        // 2. Génération du token et du QR
+        $token     = $qrCodeService->generateToken();
+        // Le QR pointe vers le FRONTEND (Vue Router gère /verify/:token)
+        $verifyUrl = config('app.frontend_url') . '/verify/' . $token;
+        $qrPng     = $qrCodeService->renderQrPng($verifyUrl, 260);
+
+        // 3. Sauvegarde du fichier original
+        $filename         = Str::uuid() . '.pdf';
+        $originalAbsolute = storage_path('app/originals/' . $filename);
+
+        if (! is_dir(dirname($originalAbsolute))) {
+            mkdir(dirname($originalAbsolute), 0755, true);
+        }
+        $uploaded->move(dirname($originalAbsolute), $filename);
+        $originalPath = 'originals/' . $filename;
+
+        // 4. Tamponnage PDF avec taille, position libre ou automatique
+        $qrSizeMm = isset($validated['qr_size_mm']) ? (int) $validated['qr_size_mm'] : 25;
+
+        $pdfCertifiePath = $pdfService->certifyPdf(
+            $originalAbsolute,
+            $qrPng,
+            qrSizeMm:  $qrSizeMm,
+            positionX: isset($validated['qr_position_x']) ? (float) $validated['qr_position_x'] : null,
+            positionY: isset($validated['qr_position_y']) ? (float) $validated['qr_position_y'] : null,
+        );
+
+        $pdfCertifieRelative = str_replace(
+            [storage_path('app/public') . DIRECTORY_SEPARATOR, storage_path('app/public') . '/'],
+            '',
+            $pdfCertifiePath
+        );
+        // Normaliser en slashes forward pour la portabilité
+        $pdfCertifieRelative = str_replace('\\', '/', $pdfCertifieRelative);
+
+        // 5. Persistance
         $document = Document::create([
             'emetteur_id'      => $emetteurId,
             'titre'            => $validated['titre'],
@@ -129,15 +198,12 @@ class DocumentController extends Controller
     public function index(Request $request)
     {
         $emetteurId = Auth::id();
-
-        if (!$emetteurId) {
-            return response()->json([
-                'message' => 'Non authentifié.',
-            ], 401);
+        if (! $emetteurId) {
+            return response()->json(['message' => 'Non authentifié.'], 401);
         }
 
-        $documents = Document::query()
-            ->where('emetteur_id', $emetteurId)
+        $documents = Document::where('emetteur_id', $emetteurId)
+            ->withCount('verifications')
             ->latest()
             ->get();
 

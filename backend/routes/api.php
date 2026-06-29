@@ -10,11 +10,11 @@ use App\Services\HashService;
 use App\Services\QRCodeService;
 use App\Services\PDFService;
 
-// Health check
+// ── Health check ──────────────────────────────────────────────────────
 Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
-// Auth
-Route::middleware('guest')->group(function () {
+// ── Authentification ──────────────────────────────────────────────────
+Route::middleware(['guest', 'throttle:10,1'])->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
 });
@@ -24,8 +24,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me',      [AuthController::class, 'me']);
 });
 
-// Admin
+// ── Administration (admin uniquement) ─────────────────────────────────
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // Statistiques tableau de bord
+    Route::get('/stats',                      [AdminController::class, 'dashboardStats']);
+
+    // Notifications
+    Route::get('/notifications',              [AdminController::class, 'notifications']);
+    Route::patch('/notifications/mark-read',  [AdminController::class, 'markNotificationsRead']);
+
+    // Gestion des admins
+    Route::get('/admins',        [AdminController::class, 'indexAdmins']);
+    Route::post('/admins',       [AdminController::class, 'createAdmin']);
+
+    // Gestion des émetteurs
     Route::get('/emetteurs',                  [AdminController::class, 'indexEmetteurs']);
     Route::post('/emetteurs',                 [AdminController::class, 'createEmetteur']);
     Route::get('/emetteurs/{user}',           [AdminController::class, 'showEmetteur']);
@@ -36,7 +48,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/stats',                      [AdminController::class, 'dashboardStats']);
 });
 
-// Documents
+// ── Documents (émetteurs authentifiés) ────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/documents',                          [DocumentController::class, 'store']);
     Route::get('/documents',                           [DocumentController::class, 'index']);
@@ -52,13 +64,16 @@ Route::prefix('verify')->group(function () {
     Route::get('/{token}/report',           [VerificationController::class, 'downloadReport']);
 });
 
-// Test tamponnage (Postman uniquement, à supprimer en prod)
-Route::post('/test-certify-upload', function (Request $request) {
-    $request->validate(['document' => 'required|file|mimes:pdf|max:10240']);
-    $file      = $request->file('document');
-    $token     = (new QRCodeService())->generateToken();
-    $verifyUrl = config('app.url') . '/verify/' . $token;
-    $qrPng     = (new QRCodeService())->renderQrPng($verifyUrl);
-    $certified = (new PDFService())->certifyPdf($file->getRealPath(), $qrPng);
-    return response()->file($certified);
-})->middleware(['auth:sanctum', 'emetteur']);
+// ── Demandes de certification (émetteurs authentifiés) ────────────────
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/demandes-certification',            [DemandesCertificationController::class, 'store']);
+    Route::get('/demandes-certification/ma-demande',  [DemandesCertificationController::class, 'maDemande']);
+});
+
+// ── Vérification publique (aucune authentification) ───────────────────
+Route::prefix('verify')->middleware('throttle:60,1')->group(function () {
+    Route::get('/{token}',          [VerificationController::class, 'verify']);
+    Route::get('/{token}/original', [VerificationController::class, 'streamOriginal']);
+    Route::post('/{token}/check-integrity', [VerificationController::class, 'checkIntegrity']);
+    Route::get('/{token}/report',   [VerificationController::class, 'downloadReport']);
+});
