@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-
+use Illuminate\Auth\Notifications\ResetPassword;
 use App\Models\Document;
 use App\Models\DemandesCertification;
 
@@ -17,6 +17,17 @@ use App\Models\DemandesCertification;
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * Surcharge l'URL du lien reset pour pointer vers le frontend Vue.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        ResetPassword::createUrlUsing(fn($notifiable, $t) =>
+            config('app.frontend_url') . '/reset-password?token=' . $t . '&email=' . urlencode($notifiable->email)
+        );
+        $this->notify(new ResetPassword($token));
+    }
 
     /**
      * Documents émis par cet utilisateur.

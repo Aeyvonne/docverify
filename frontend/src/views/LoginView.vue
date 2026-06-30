@@ -21,7 +21,11 @@ async function handleSubmit() {
   try {
     await auth.login(email.value, password.value)
     const redirect = route.query.redirect
-    router.push(redirect ?? (auth.isAdmin ? { name: 'admin' } : { name: 'dashboard' }))
+    const role = auth.user?.role
+    const home = role === 'admin' ? { name: 'admin' }
+               : role === 'validateur' ? { name: 'validateur' }
+               : { name: 'dashboard' }
+    router.push(redirect ?? home)
   } catch (e) {
     errorMsg.value = e.response?.data?.message
       ?? e.response?.data?.errors?.email?.[0]
@@ -56,7 +60,7 @@ async function handleSubmit() {
       <div class="relative z-10 max-w-xs">
         <p class="text-cream/90 text-2xl font-serif leading-relaxed mb-4"
            style="font-family:'Cormorant',Georgia,serif; font-weight:300;">
-          « Chaque document mérite d'être protégé. »
+          « Chaque document mérite d'être authentifié. »
         </p>
         <p class="text-cream/50 text-sm leading-relaxed">
           Certifiez, partagez et laissez vos destinataires vérifier l'authenticité en un scan.

@@ -4,7 +4,7 @@
  * Route : /admin/demandes
  */
 import { ref, onMounted, computed } from 'vue'
-import AppLayout from '@/components/AppLayout.vue'
+import AdminLayout from '@/components/AdminLayout.vue'
 import api from '@/api/axios'
 
 const demandes    = ref([])
@@ -107,7 +107,7 @@ async function submitRefus() {
 </script>
 
 <template>
-  <AppLayout>
+  <AdminLayout>
 
     <!-- En-tête -->
     <div class="mb-8 fade-in-up">
@@ -229,7 +229,7 @@ async function submitRefus() {
       </div>
     </div>
 
-  </AppLayout>
+  </AdminLayout>
 
   <!-- Modal refus -->
   <Teleport to="body">

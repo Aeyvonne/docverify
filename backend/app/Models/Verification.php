@@ -10,11 +10,7 @@ class Verification extends Model
 {
     use HasFactory;
 
-<<<<<<< HEAD
-    public $timestamps = false; // ← ajouter cette ligne
-=======
     public $timestamps = false;
->>>>>>> bar
 
     protected $fillable = [
         'document_id',

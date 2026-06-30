@@ -14,8 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Enregistrement des alias de middleware
         $middleware->alias([
-            'admin'    => \App\Http\Middleware\IsAdmin::class,
-            'emetteur' => \App\Http\Middleware\IsEmetteur::class,
+            'admin'      => \App\Http\Middleware\IsAdmin::class,
+            'emetteur'   => \App\Http\Middleware\IsEmetteur::class,
+            'validateur' => \App\Http\Middleware\IsValidateur::class,
         ]);
 
         // Sanctum gère l'auth via tokens pour les routes API
