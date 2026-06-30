@@ -119,7 +119,7 @@ function recommencer() {
     <template v-else>
 
       <!-- ── Déjà certifié ── -->
-      <div v-else-if="auth.isCertified" class="card-premium p-10 text-center fade-in-up">
+      <div v-if="auth.isCertified" class="card-premium p-10 text-center fade-in-up">
         <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
              style="background:rgba(124,144,112,0.12);">
           <span class="text-3xl" style="color:#7C9070;">★</span>

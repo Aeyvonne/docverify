@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin         = computed(() => user.value?.role === 'admin')
   const isEmetteur      = computed(() => user.value?.role === 'emetteur')
+  const isValidateur    = computed(() => user.value?.role === 'validateur')
   const isCertified     = computed(() => user.value?.is_certified === true)
 
   // ── Actions ───────────────────────────────────────────────────────────
@@ -49,5 +50,5 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.setItem('auth_user', JSON.stringify(data))
   }
 
-  return { user, token, isAuthenticated, isAdmin, isEmetteur, isCertified, login, logout, fetchMe }
+  return { user, token, isAuthenticated, isAdmin, isEmetteur, isValidateur, isCertified, login, logout, fetchMe }
 })

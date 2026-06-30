@@ -140,8 +140,13 @@ class VerificationController extends Controller
         $uploadedFile   = $request->file('fichier');
         $hashUploaded   = hash_file('sha256', $uploadedFile->getRealPath());
 
-        // Hash du PDF certifié stocké sur le serveur (calculé à la volée)
-        $certifiedPath  = storage_path('app/' . $document->pdf_certifie);
+        // Résoudre le chemin certifié de façon sécurisée (éviter path traversal)
+        $storageBase    = realpath(storage_path('app/public'));
+        $certifiedPath  = realpath(storage_path('app/public/' . $document->pdf_certifie));
+
+        if ($certifiedPath === false || !str_starts_with($certifiedPath, $storageBase . DIRECTORY_SEPARATOR)) {
+            return response()->json(['message' => 'Chemin de fichier invalide.'], 500);
+        }
 
         if (! file_exists($certifiedPath)) {
             return response()->json([

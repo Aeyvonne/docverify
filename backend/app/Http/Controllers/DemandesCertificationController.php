@@ -5,30 +5,26 @@ namespace App\Http\Controllers;
 use App\Models\DemandesCertification;
 use App\Models\Notification;
 use App\Models\User;
+use App\Mail\NouvelleDemandeAdmin;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class DemandesCertificationController extends Controller
 {
     /**
      * Soumet une nouvelle demande de certification.
-     * L'émetteur fournit son NINEA, RCCM et un fichier justificatif.
-     *
      * POST /api/demandes-certification
-     * Protégé : auth:sanctum
      */
     public function store(Request $request)
     {
         $user = $request->user();
 
-        // Un utilisateur déjà certifié ne peut pas resoumettre
         if ($user->is_certified) {
-            return response()->json([
-                'message' => 'Votre compte est déjà certifié.',
-            ], 422);
+            return response()->json(['message' => 'Votre compte est déjà certifié.'], 422);
         }
 
-        // Bloquer si une demande est déjà en attente
         $demandeEnCours = DemandesCertification::where('user_id', $user->id)
             ->where('statut', 'en_attente')
             ->exists();
@@ -46,7 +42,6 @@ class DemandesCertificationController extends Controller
             'message'        => ['nullable', 'string', 'max:1000'],
         ]);
 
-        // Stockage du fichier justificatif
         $file     = $request->file('fichier_preuve');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
         $path     = $file->storeAs('preuves_certification', $filename, 'local');
@@ -59,28 +54,55 @@ class DemandesCertificationController extends Controller
             'statut'         => 'en_attente',
         ]);
 
-        // Notifier tous les admins actifs
-        $admins = User::where('role', 'admin')->where('is_active', true)->get();
-        foreach ($admins as $admin) {
+        // Notifier tous les VALIDATEURS actifs (cloche + email)
+        $validateurs = User::where('role', 'validateur')->where('is_active', true)->get();
+
+        foreach ($validateurs as $validateur) {
             Notification::create([
-                'admin_id'   => $admin->id,
+                'admin_id'   => $validateur->id,
                 'demande_id' => $demande->id,
                 'message'    => "Nouvelle demande de certification de {$user->prenom} {$user->nom} ({$user->nom_institution}).",
                 'lu'         => false,
             ]);
+
+            if ($validateur->email) {
+                try {
+                    Mail::to($validateur->email)->send(new NouvelleDemandeAdmin($demande->load('user'), 'validateur'));
+                } catch (\Throwable $e) {
+                    Log::error('Mail NouvelleDemandeAdmin failed', ['error' => $e->getMessage(), 'validateur' => $validateur->email]);
+                }
+            }
+        }
+
+        // Si aucun validateur actif, notifier les admins en fallback
+        if ($validateurs->isEmpty()) {
+            $admins = User::where('role', 'admin')->where('is_active', true)->get();
+            foreach ($admins as $admin) {
+                Notification::create([
+                    'admin_id'   => $admin->id,
+                    'demande_id' => $demande->id,
+                    'message'    => "Nouvelle demande de certification de {$user->prenom} {$user->nom} ({$user->nom_institution}).",
+                    'lu'         => false,
+                ]);
+                if ($admin->email) {
+                    try {
+                        Mail::to($admin->email)->send(new NouvelleDemandeAdmin($demande->load('user'), 'admin'));
+                    } catch (\Throwable $e) {
+                        Log::error('Mail NouvelleDemandeAdmin (fallback admin) failed', ['error' => $e->getMessage(), 'admin' => $admin->email]);
+                    }
+                }
+            }
         }
 
         return response()->json([
-            'message' => 'Demande de certification soumise avec succès. Elle sera traitée par un administrateur.',
+            'message' => 'Demande de certification soumise avec succès. Elle sera traitée par un responsable.',
             'demande' => $demande,
         ], 201);
     }
 
     /**
      * Retourne la dernière demande de l'utilisateur connecté.
-     *
      * GET /api/demandes-certification/ma-demande
-     * Protégé : auth:sanctum
      */
     public function maDemande(Request $request)
     {
@@ -92,10 +114,8 @@ class DemandesCertificationController extends Controller
     }
 
     /**
-     * Liste toutes les demandes en attente — admin uniquement.
-     *
-     * GET /api/admin/demandes
-     * Protégé : auth:sanctum + admin
+     * Liste toutes les demandes — validateur + admin.
+     * GET /api/validateur/demandes
      */
     public function index()
     {
@@ -108,33 +128,28 @@ class DemandesCertificationController extends Controller
     }
 
     /**
-     * Sert le fichier justificatif d'une demande — admin uniquement.
-     *
-     * GET /api/admin/demandes/{demande}/justificatif
+     * Sert le fichier justificatif d'une demande.
+     * GET /api/validateur/demandes/{demande}/justificatif
      */
     public function downloadJustificatif(DemandesCertification $demande)
     {
-        // Laravel 11 stocke les fichiers 'local' dans storage/app/private/
         $relativePath = str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $demande->fichier_preuve);
 
-        // Essayer d'abord storage/app/private/ (Laravel 11)
         $path = storage_path('app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . $relativePath);
-
-        // Fallback sur storage/app/ (Laravel 10 et versions antérieures)
-        if (! file_exists($path)) {
+        if (!file_exists($path)) {
             $path = storage_path('app' . DIRECTORY_SEPARATOR . $relativePath);
         }
 
-        if (! file_exists($path)) {
+        if (!file_exists($path)) {
             return response()->json(['message' => 'Fichier introuvable.'], 404);
         }
 
         $extension = pathinfo($path, PATHINFO_EXTENSION);
-        $mime = match(strtolower($extension)) {
-            'pdf'  => 'application/pdf',
+        $mime = match (strtolower($extension)) {
+            'pdf'         => 'application/pdf',
             'jpg', 'jpeg' => 'image/jpeg',
-            'png'  => 'image/png',
-            default => 'application/octet-stream',
+            'png'         => 'image/png',
+            default       => 'application/octet-stream',
         };
 
         return response()->file($path, [
@@ -144,10 +159,42 @@ class DemandesCertificationController extends Controller
     }
 
     /**
+     * Approuve une demande et certifie l'émetteur.
+     * PATCH /api/validateur/demandes/{demande}/approuver
+     * Accessible : validateur + admin
+     */
+    public function approuver(Request $request, DemandesCertification $demande)
+    {
+        if ($demande->statut !== 'en_attente') {
+            return response()->json(['message' => 'Cette demande a déjà été traitée.'], 422);
+        }
+
+        $demande->update([
+            'statut'     => 'approuvee',
+            'traite_par' => $request->user()->id,
+            'traite_le'  => now(),
+        ]);
+
+        $demande->user->update(['is_certified' => true]);
+
+        // Email de confirmation à l'émetteur
+        try {
+            Mail::to($demande->user->email)
+                ->send(new \App\Mail\DemandeApprouvee($demande->load('user')));
+        } catch (\Throwable $e) {
+            Log::error('Mail DemandeApprouvee failed', ['error' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            'message' => "Demande approuvée. L'émetteur est maintenant certifié.",
+            'demande' => $demande->fresh()->load('user:id,nom,prenom,email,nom_institution'),
+        ]);
+    }
+
+    /**
      * Refuse une demande avec un motif obligatoire.
-     *
-     * PATCH /api/admin/demandes/{demande}/refuse
-     * Protégé : auth:sanctum + admin
+     * PATCH /api/validateur/demandes/{demande}/refuse
+     * Accessible : validateur + admin
      */
     public function refuse(Request $request, DemandesCertification $demande)
     {
@@ -165,6 +212,13 @@ class DemandesCertificationController extends Controller
             'traite_par'  => $request->user()->id,
             'traite_le'   => now(),
         ]);
+
+        try {
+            Mail::to($demande->user->email)
+                ->send(new \App\Mail\DemandeRefusee($demande->load('user')));
+        } catch (\Throwable $e) {
+            Log::error('Mail DemandeRefusee failed', ['error' => $e->getMessage()]);
+        }
 
         return response()->json([
             'message' => 'Demande refusée.',

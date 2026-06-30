@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import AppLayout from '@/components/AppLayout.vue'
+import AdminLayout from '@/components/AdminLayout.vue'
 import api from '@/api/axios'
 
 const emetteurs = ref([])
@@ -77,7 +77,7 @@ async function submitCreate() {
 </script>
 
 <template>
-  <AppLayout>
+  <AdminLayout>
 
     <!-- En-tête -->
     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 fade-in-up">
@@ -186,7 +186,7 @@ async function submitCreate() {
       </div>
     </div>
 
-  </AppLayout>
+  </AdminLayout>
 
   <!-- Modal créer un émetteur -->
   <Teleport to="body">

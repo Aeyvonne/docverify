@@ -21,6 +21,24 @@ const routes = [
     meta: { guestOnly: true },
   },
   {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: () => import('@/views/ForgotPasswordView.vue'),
+    meta: { guestOnly: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'reset-password',
+    component: () => import('@/views/ResetPasswordView.vue'),
+    meta: { guestOnly: true },
+  },
+  {
+    path: '/change-password',
+    name: 'change-password',
+    component: () => import('@/views/ChangePasswordView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/verify/:token',
     name: 'verify',
     component: () => import('@/views/verify/VerifyView.vue'),
@@ -49,7 +67,7 @@ const routes = [
     path: '/certification',
     name: 'certification',
     component: () => import('@/views/emetteur/CertificationView.vue'),
-    meta: { requiresAuth: true, role: 'emetteur', institutionOnly: true },
+    meta: { requiresAuth: true, role: 'emetteur' },
   },
 
   // ── Admin ─────────────────────────────────────────────────────────────
@@ -77,6 +95,32 @@ const routes = [
     component: () => import('@/views/admin/AdminsView.vue'),
     meta: { requiresAuth: true, role: 'admin' },
   },
+  {
+    path: '/admin/parametres',
+    name: 'admin.parametres',
+    component: () => import('@/views/admin/ParametresView.vue'),
+    meta: { requiresAuth: true, role: 'admin' },
+  },
+
+  // ── Validateur ────────────────────────────────────────────────────────
+  {
+    path: '/validateur',
+    name: 'validateur',
+    component: () => import('@/views/validateur/DashboardView.vue'),
+    meta: { requiresAuth: true, role: 'validateur' },
+  },
+  {
+    path: '/validateur/demandes',
+    name: 'validateur.demandes',
+    component: () => import('@/views/validateur/DemandesView.vue'),
+    meta: { requiresAuth: true, role: 'validateur' },
+  },
+  {
+    path: '/validateur/profil',
+    name: 'validateur.profil',
+    component: () => import('@/views/validateur/ProfilView.vue'),
+    meta: { requiresAuth: true, role: 'validateur' },
+  },
 
   // ── 404 ───────────────────────────────────────────────────────────────
   {
@@ -92,13 +136,21 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// Retourne la route d'accueil selon le rôle
+function homeRoute(role) {
+  if (role === 'admin')      return { name: 'admin' }
+  if (role === 'validateur') return { name: 'validateur' }
+  return { name: 'dashboard' }
+}
+
 // ── Guards ─────────────────────────────────────────────────────────────
 router.beforeEach((to) => {
   const auth = useAuthStore()
+  const role = auth.user?.role
 
-  // Page réservée aux non-connectés (login)
+  // Page réservée aux non-connectés
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return auth.isAdmin ? { name: 'admin' } : { name: 'dashboard' }
+    return homeRoute(role)
   }
 
   // Page nécessitant une connexion
@@ -106,14 +158,10 @@ router.beforeEach((to) => {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
 
-  // Vérification du rôle
-  if (to.meta.role && auth.user?.role !== to.meta.role) {
-    return auth.isAdmin ? { name: 'admin' } : { name: 'dashboard' }
-  }
-
-  // Page réservée aux institutions — bloquer les particuliers
-  if (to.meta.institutionOnly && auth.user?.type_institution === 'particulier') {
-    return { name: 'dashboard' }
+  // Vérification du rôle — redirige vers sa propre home si mauvais rôle
+  if (to.meta.role && role !== to.meta.role) {
+    // /change-password n'a pas de meta.role → accessible à tous
+    return homeRoute(role)
   }
 })
 

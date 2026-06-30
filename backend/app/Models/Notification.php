@@ -5,17 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-use App\Models\User;
-use App\Models\Verification;
-use App\Models\DemandesCertification;
-
-
-/**
- * Modèle représentant un document certifié numériquement.
- * Gère l'émission, la sécurisation cryptographique et la révocation des documents.
- */
 class Notification extends Model
 {
     use HasFactory;
@@ -31,7 +21,7 @@ class Notification extends Model
     ];
 
     protected $casts = [
-        'lu' => 'boolean',
+        'lu'         => 'boolean',
         'created_at' => 'datetime',
     ];
 

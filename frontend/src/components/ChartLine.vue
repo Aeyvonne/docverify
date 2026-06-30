@@ -151,8 +151,8 @@ onUnmounted(() => chartInst?.destroy())
     </div>
 
     <!-- Canvas -->
-    <div :style="{ height: height + 'px' }">
-      <canvas ref="canvas"></canvas>
+    <div :style="{ height: height + 'px', position: 'relative' }">
+      <canvas ref="canvas" style="width:100%; height:100%;"></canvas>
     </div>
   </div>
 </template>
