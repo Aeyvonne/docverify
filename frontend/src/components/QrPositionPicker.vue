@@ -1,9 +1,10 @@
 <script setup>
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, markRaw } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
+// Worker via CDN — évite les problèmes de bundling Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-  new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
 
 const props = defineProps({
   file:     { type: File,   default: null },
@@ -18,13 +19,15 @@ const erreur      = ref(null)
 const currentPage = ref(1)
 const totalPages  = ref(0)
 const pageDims    = ref([])   // [{ width_mm, height_mm }] indexé par page (0-based)
-const pdfDoc      = ref(null)
 
-// positions[pageIndex] = { x_mm, y_mm } | null
-const positions   = ref([])
+// IMPORTANT : pdfDocRaw est une variable module, PAS un ref()
+// Les classes pdfjs utilisent des champs privés ES (#pagePromises, etc.)
+// qui sont incompatibles avec le Proxy de réactivité Vue.
+// markRaw() + variable hors ref() résout le problème.
+let pdfDocRaw = null
 
-// Mode : 'auto' = page 1 propagée, 'manuel' = chaque page indépendante
-const mode = ref('auto')
+const positions = ref([])
+const mode      = ref('auto')
 
 // ── Computed ──────────────────────────────────────────────────────────
 const currentDims = computed(() => pageDims.value[currentPage.value - 1] ?? null)
@@ -36,13 +39,12 @@ function getMarkerSizeCss() {
   return Math.round((props.qrSizeMm / currentDims.value.width_mm) * rect.width)
 }
 
-// Marqueur CSS calculé à partir de la position mm
 const markerStyle = computed(() => {
   if (!canvas.value || !currentDims.value || !currentPos.value) return null
   const rect = canvas.value.getBoundingClientRect()
   const { width_mm, height_mm } = currentDims.value
-  const ms = getMarkerSizeCss()
-  const cssX = (currentPos.value.x_mm / width_mm) * rect.width
+  const ms   = getMarkerSizeCss()
+  const cssX = (currentPos.value.x_mm / width_mm)  * rect.width
   const cssY = (currentPos.value.y_mm / height_mm) * rect.height
   return {
     left:   Math.max(0, cssX) + 'px',
@@ -55,22 +57,27 @@ const markerStyle = computed(() => {
 // ── Chargement du PDF ─────────────────────────────────────────────────
 async function loadPdf(file) {
   if (!file) return
-  loading.value  = true
-  erreur.value   = null
-  positions.value = []
-  pageDims.value  = []
+  loading.value     = true
+  erreur.value      = null
+  positions.value   = []
+  pageDims.value    = []
   currentPage.value = 1
+  pdfDocRaw         = null
 
   try {
     const buffer = await file.arrayBuffer()
-    pdfDoc.value = await pdfjsLib.getDocument({ data: buffer }).promise
-    totalPages.value = pdfDoc.value.numPages
 
-    // Pré-calculer les dimensions de toutes les pages
+    // markRaw() empêche Vue d'envelopper l'objet dans un Proxy.
+    // Sans ça, Vue intercepte tous les accès aux propriétés, ce qui casse
+    // les champs privés (#pagePromises) des classes internes de pdfjs.
+    pdfDocRaw = markRaw(await pdfjsLib.getDocument({ data: buffer }).promise)
+
+    totalPages.value = pdfDocRaw.numPages
+
     const dims = []
     for (let i = 1; i <= totalPages.value; i++) {
-      const p  = await pdfDoc.value.getPage(i)
-      const vp = p.getViewport({ scale: 1 })
+      const page = await pdfDocRaw.getPage(i)
+      const vp   = page.getViewport({ scale: 1 })
       dims.push({
         width_mm:  parseFloat((vp.width  * 0.3528).toFixed(2)),
         height_mm: parseFloat((vp.height * 0.3528).toFixed(2)),
@@ -81,23 +88,26 @@ async function loadPdf(file) {
 
     await renderPage(1)
   } catch (e) {
-    erreur.value = 'Impossible de lire ce PDF. Vérifiez qu\'il n\'est pas protégé.'
+    console.error('[QrPositionPicker] Erreur chargement PDF:', e)
+    erreur.value = e?.message?.includes('password')
+      ? 'Ce PDF est protégé par un mot de passe.'
+      : 'Impossible de lire ce PDF. Vérifiez qu\'il n\'est pas corrompu.'
   } finally {
     loading.value = false
   }
 }
 
 async function renderPage(pageNum) {
-  if (!pdfDoc.value || !canvas.value) return
+  if (!pdfDocRaw || !canvas.value) return
   loading.value = true
   await nextTick()
 
   try {
-    const page       = await pdfDoc.value.getPage(pageNum)
-    const vpNatif    = page.getViewport({ scale: 1 })
-    const containerW = canvas.value.parentElement?.clientWidth || 600
-    const scale      = Math.min(containerW / vpNatif.width, 2)
-    const vp         = page.getViewport({ scale })
+    const page    = await pdfDocRaw.getPage(pageNum)
+    const vpNatif = page.getViewport({ scale: 1 })
+    const contW   = canvas.value.parentElement?.clientWidth || 600
+    const scale   = Math.min(contW / vpNatif.width, 2)
+    const vp      = page.getViewport({ scale })
 
     canvas.value.width  = vp.width
     canvas.value.height = vp.height
@@ -121,24 +131,21 @@ async function goTo(pageNum) {
 function handleClick(event) {
   if (!canvas.value || !currentDims.value || loading.value) return
 
-  const rect   = canvas.value.getBoundingClientRect()
-  const cssX   = event.clientX - rect.left
-  const cssY   = event.clientY - rect.top
+  const rect              = canvas.value.getBoundingClientRect()
+  const cssX              = event.clientX - rect.left
+  const cssY              = event.clientY - rect.top
   const { width_mm, height_mm } = currentDims.value
-  const qrMm = props.qrSizeMm ?? 25
+  const qrMm              = props.qrSizeMm ?? 25
 
   const x_mm = parseFloat(Math.max(0, Math.min(
-    (cssX / rect.width)  * width_mm, width_mm  - qrMm
+    (cssX / rect.width)  * width_mm,  width_mm  - qrMm
   )).toFixed(2))
 
   const y_mm = parseFloat(Math.max(0, Math.min(
     (cssY / rect.height) * height_mm, height_mm - qrMm
   )).toFixed(2))
 
-  const idx = currentPage.value - 1
-
   if (mode.value === 'auto') {
-    // Propager la position de la page 1 à toutes les pages (même ratio)
     const ratioX = x_mm / width_mm
     const ratioY = y_mm / height_mm
     positions.value = pageDims.value.map(d => ({
@@ -146,9 +153,8 @@ function handleClick(event) {
       y_mm: parseFloat((ratioY * d.height_mm).toFixed(2)),
     }))
   } else {
-    // Mode manuel : uniquement la page courante
     const newPos = [...positions.value]
-    newPos[idx] = { x_mm, y_mm }
+    newPos[currentPage.value - 1] = { x_mm, y_mm }
     positions.value = newPos
   }
 
@@ -168,7 +174,6 @@ function resetAll() {
 }
 
 function emitPositions() {
-  // Émettre un tableau indexé par page (1-based) → null si auto/bas-droite
   emit('positions-updated', positions.value.map((p, i) => ({
     page: i + 1,
     x_mm: p?.x_mm ?? null,
@@ -176,14 +181,13 @@ function emitPositions() {
   })))
 }
 
-// ── Watcher fichier ───────────────────────────────────────────────────
+// ── Watchers ──────────────────────────────────────────────────────────
 watch(() => props.file, (file) => {
   if (file) loadPdf(file)
-  else { pdfDoc.value = null; totalPages.value = 0; positions.value = [] }
+  else { pdfDocRaw = null; totalPages.value = 0; positions.value = [] }
 }, { immediate: true })
 
 watch(mode, () => {
-  // Quand on change de mode, on remet tout à zéro
   positions.value = Array(totalPages.value).fill(null)
   emitPositions()
 })
@@ -202,25 +206,18 @@ watch(mode, () => {
 
       <!-- Sélecteur de mode -->
       <div class="flex gap-2 p-1 rounded-xl" style="background:#E8DCCB;">
-        <button type="button"
-                @click="mode = 'auto'"
+        <button type="button" @click="mode = 'auto'"
                 class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                :style="mode === 'auto'
-                  ? 'background:#4A372C;color:#FBF7F0;'
-                  : 'background:transparent;color:#8C7A6B;'">
+                :style="mode === 'auto' ? 'background:#4A372C;color:#FBF7F0;' : 'background:transparent;color:#8C7A6B;'">
           📌 Position unique (toutes les pages)
         </button>
-        <button type="button"
-                @click="mode = 'manuel'"
+        <button type="button" @click="mode = 'manuel'"
                 class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                :style="mode === 'manuel'
-                  ? 'background:#4A372C;color:#FBF7F0;'
-                  : 'background:transparent;color:#8C7A6B;'">
+                :style="mode === 'manuel' ? 'background:#4A372C;color:#FBF7F0;' : 'background:transparent;color:#8C7A6B;'">
           🎯 Position par page
         </button>
       </div>
 
-      <!-- Info mode -->
       <p class="text-xs text-center" style="color:#8C7A6B;">
         <template v-if="mode === 'auto'">
           Cliquez sur la page 1 — le QR sera placé proportionnellement sur toutes les pages.
@@ -232,18 +229,14 @@ watch(mode, () => {
 
       <!-- Navigation pages -->
       <div v-if="totalPages > 1" class="flex items-center justify-between gap-2">
-        <button type="button"
-                @click="goTo(currentPage - 1)"
+        <button type="button" @click="goTo(currentPage - 1)"
                 :disabled="currentPage <= 1 || loading"
                 class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40"
                 style="background:#E8DCCB;color:#4A372C;">
           ← Précédente
         </button>
-
-        <!-- Pastilles pages -->
         <div class="flex gap-1.5 flex-wrap justify-center">
-          <button v-for="p in totalPages" :key="p" type="button"
-                  @click="goTo(p)"
+          <button v-for="p in totalPages" :key="p" type="button" @click="goTo(p)"
                   class="w-7 h-7 rounded-full text-xs font-bold transition-all"
                   :style="p === currentPage
                     ? 'background:#4A372C;color:#FBF7F0;'
@@ -253,9 +246,7 @@ watch(mode, () => {
             {{ p }}
           </button>
         </div>
-
-        <button type="button"
-                @click="goTo(currentPage + 1)"
+        <button type="button" @click="goTo(currentPage + 1)"
                 :disabled="currentPage >= totalPages || loading"
                 class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40"
                 style="background:#E8DCCB;color:#4A372C;">
@@ -267,27 +258,24 @@ watch(mode, () => {
       <div class="flex items-center justify-between text-xs" style="color:#8C7A6B;">
         <span>Page <strong style="color:#3A2E26;">{{ currentPage }}</strong> / {{ totalPages }}</span>
         <div class="flex gap-2">
-          <span v-if="currentPos" class="text-xs" style="color:#7C9070;">
+          <span v-if="currentPos" style="color:#7C9070;">
             ✓ QR positionné ({{ currentPos.x_mm }}mm, {{ currentPos.y_mm }}mm)
           </span>
-          <span v-else class="text-xs italic">
-            Pas de position → bas-droit par défaut
-          </span>
+          <span v-else class="italic">Pas de position → bas-droit par défaut</span>
         </div>
       </div>
 
-      <!-- Canvas -->
+      <!-- Canvas cliquable -->
       <div class="relative w-full rounded-xl overflow-hidden shadow-sm"
            :class="loading ? 'cursor-wait' : 'cursor-crosshair'"
            style="border:1px solid #D9C6A8;min-height:120px;background:#F2E9DE;"
            @click="handleClick">
 
-        <!-- Spinner -->
         <Transition name="fade">
           <div v-if="loading"
                class="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3"
                style="background:rgba(242,233,222,0.85);">
-            <div class="w-8 h-8 border-2 border-t-brown rounded-full animate-spin"
+            <div class="w-8 h-8 border-2 rounded-full animate-spin"
                  style="border-color:#D9C6A8;border-top-color:#4A372C;"></div>
             <p class="text-xs" style="color:#8C7A6B;">Rendu en cours…</p>
           </div>
@@ -297,9 +285,7 @@ watch(mode, () => {
 
         <!-- Marqueur QR -->
         <Transition name="pop">
-          <div v-if="currentPos && !loading"
-               class="absolute pointer-events-none"
-               :style="markerStyle">
+          <div v-if="currentPos && !loading" class="absolute pointer-events-none" :style="markerStyle">
             <div class="w-full h-full rounded flex items-center justify-center"
                  style="border:2px dashed #4A372C;background:rgba(74,55,44,0.15);">
               <svg viewBox="0 0 10 10" class="w-4 h-4" fill="#4A372C">
@@ -322,21 +308,17 @@ watch(mode, () => {
         </Transition>
       </div>
 
-      <!-- Résumé positions + actions -->
+      <!-- Résumé + actions -->
       <div class="flex items-center justify-between text-xs" style="color:#8C7A6B;">
-        <span>
-          {{ positions.filter(p => p !== null).length }}/{{ totalPages }} page(s) avec position définie
-        </span>
+        <span>{{ positions.filter(p => p !== null).length }}/{{ totalPages }} page(s) avec position définie</span>
         <div class="flex gap-3">
-          <button v-if="currentPos" type="button"
-                  @click="resetPage"
-                  class="underline underline-offset-2 hover:text-terracotta transition-colors"
+          <button v-if="currentPos" type="button" @click="resetPage"
+                  class="underline underline-offset-2 hover:opacity-70 transition-opacity"
                   style="color:#8C7A6B;">
             Réinitialiser cette page
           </button>
-          <button v-if="positions.some(p => p !== null)" type="button"
-                  @click="resetAll"
-                  class="underline underline-offset-2 transition-colors"
+          <button v-if="positions.some(p => p !== null)" type="button" @click="resetAll"
+                  class="underline underline-offset-2 hover:opacity-70 transition-opacity"
                   style="color:#B5533C;">
             Tout réinitialiser
           </button>
@@ -345,7 +327,7 @@ watch(mode, () => {
 
     </template>
 
-    <!-- État vide (pas encore de fichier) -->
+    <!-- État vide -->
     <div v-else-if="!erreur"
          class="w-full h-36 rounded-xl flex flex-col items-center justify-center gap-2"
          style="background:#F2E9DE;border:2px dashed #D9C6A8;">
@@ -361,8 +343,8 @@ watch(mode, () => {
 </template>
 
 <style scoped>
-.fade-enter-active,.fade-leave-active{transition:opacity 0.2s ease}
-.fade-enter-from,.fade-leave-to{opacity:0}
-.pop-enter-active{transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1)}
-.pop-enter-from{opacity:0;transform:scale(0.5)}
+.fade-enter-active,.fade-leave-active { transition: opacity 0.2s ease }
+.fade-enter-from,.fade-leave-to       { opacity: 0 }
+.pop-enter-active  { transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1) }
+.pop-enter-from    { opacity: 0; transform: scale(0.5) }
 </style>
