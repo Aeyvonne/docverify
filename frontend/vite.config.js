@@ -13,6 +13,18 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
+  worker: {
+    format: 'es',
+  },
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
+  worker: {
+    format: 'es',
+  },
   server: {
     proxy: {
       '/api': {
